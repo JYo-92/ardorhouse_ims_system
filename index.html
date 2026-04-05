@@ -323,7 +323,7 @@ tbody tr:hover{background:#f9fafb}
 </div></div>
 </div>
 </div>
-<div class="mf"><button class="btn btn-o" onclick="closeProjModal()">Cancel</button><button class="btn btn-p" id="proj-save-btn" onclick="saveProj().catch(e=>{console.error(e);toast('Save failed: '+e.message,'error')})">Save Project</button></div>
+<div class="mf"><button class="btn btn-o" onclick="closeProjModal()">Cancel</button><button class="btn btn-p" id="proj-save-btn">Save Project</button></div>
 </div>
 </div>
 
@@ -1063,6 +1063,12 @@ if($('lightbox').classList.contains('open')){if(e.key==='ArrowRight')navLB(1);if
 
 // ===================== INIT =====================
 initInvFilters();
+
+// Wire up Save Project button with proper async handling
+$('proj-save-btn').addEventListener('click',function(){
+saveProj().catch(function(e){console.error('Save button error:',e);toast('Save failed: '+e.message,'error')});
+});
+
 let _authReady=false;
 sb.auth.onAuthStateChange(async(event,session)=>{
 if(session&&session.user){
