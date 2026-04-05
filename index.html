@@ -144,6 +144,10 @@ tbody tr:hover{background:#f9fafb}
 .login-btn:hover{background:#d4a56a}
 .login-btn:disabled{opacity:.5;cursor:not-allowed}
 .login-err{color:#f87171;font-size:.8rem;margin-top:12px;min-height:20px}
+.login-ok{color:#4ade80;font-size:.8rem;margin-top:12px;min-height:20px}
+.login-toggle{color:rgba(255,255,255,.5);font-size:.8rem;margin-top:16px}
+.login-toggle a{color:#e2b87e;text-decoration:none;cursor:pointer;font-weight:600}
+.login-toggle a:hover{text-decoration:underline}
 .login-footer{margin-top:32px;font-size:.65rem;color:rgba(255,255,255,.2)}
 </style>
 </head>
@@ -187,8 +191,18 @@ tbody tr:hover{background:#f9fafb}
 <h1 style="font-size:1.4rem;margin-bottom:20px">Dashboard</h1>
 <div class="cards" id="dash-cards"></div>
 <div id="dash-alerts"></div>
-<div class="tb"><h2>Active Projects</h2></div>
-<div class="tw"><table><thead><tr><th>Project</th><th>Business Unit</th><th>End Date</th><th class="tr">Invoice</th><th class="tr">Profit</th><th class="tr">Margin</th></tr></thead><tbody id="dash-proj"></tbody></table></div>
+
+<div class="tb" style="margin-top:8px"><h2>Scheduled Projects</h2></div>
+<div class="tw"><table><thead><tr><th>Project</th><th>Business Unit</th><th>Start Date</th><th class="tr">Invoice</th><th></th></tr></thead><tbody id="dash-scheduled"></tbody></table></div>
+
+<div class="tb" style="margin-top:20px"><h2>Active Projects</h2></div>
+<div class="tw"><table><thead><tr><th>Project</th><th>Business Unit</th><th>End Date</th><th class="tr">Invoice</th><th class="tr">Profit</th><th class="tr">Margin</th><th></th></tr></thead><tbody id="dash-active"></tbody></table></div>
+
+<div class="tb" style="margin-top:20px"><h2>De-stage Scheduled</h2></div>
+<div class="tw"><table><thead><tr><th>Project</th><th>Business Unit</th><th>End Date</th><th class="tr">Invoice</th><th class="tr">Profit</th><th class="tr">Margin</th><th></th></tr></thead><tbody id="dash-destage"></tbody></table></div>
+
+<div class="tb" style="margin-top:20px"><h2>Completed Projects</h2></div>
+<div class="tw"><table><thead><tr><th>Project</th><th>Business Unit</th><th>End Date</th><th class="tr">Invoice</th><th class="tr">Profit</th><th class="tr">Margin</th><th></th></tr></thead><tbody id="dash-completed"></tbody></table></div>
 </div>
 
 <!-- ==================== INVENTORY ==================== -->
@@ -211,7 +225,7 @@ tbody tr:hover{background:#f9fafb}
 <div class="tb"><h2>All Projects</h2><div class="acts"><button class="btn btn-p" onclick="openProjModal()">+ New Project</button></div></div>
 <div class="filters">
 <select id="fp-bu" onchange="rProj()"><option value="">All Business Units</option><option>Staging</option><option>Interior Design</option><option>Vacation Rental Design</option><option>Furniture Rental</option></select>
-<select id="fp-stat" onchange="rProj()"><option value="">All</option><option>Active</option><option>Ended</option></select>
+<select id="fp-stat" onchange="rProj()"><option value="">All Statuses</option><option>Scheduled</option><option>Active</option><option>De-stage Scheduled</option><option>Completed</option></select>
 <input id="fp-q" placeholder="Search..." oninput="rProj()">
 </div>
 <div class="tw"><table><thead><tr><th>Project</th><th>Business Unit</th><th>Start</th><th>End</th><th class="tr">Invoice</th><th class="tr">Profit</th><th class="tr">Margin</th><th>Status</th><th></th></tr></thead><tbody id="proj-tb"></tbody></table>
@@ -297,7 +311,8 @@ tbody tr:hover{background:#f9fafb}
 <div class="fi"><label>Property Address *</label><input id="pi-addr" required></div>
 <div class="fi"><label>Business Unit *</label><select id="pi-bu" required><option value="">Select...</option><option>Staging</option><option>Interior Design</option><option>Vacation Rental Design</option><option>Furniture Rental</option></select></div>
 <div class="fi"><label>Agent Contact</label><input id="pi-agent"></div>
-<div class="fi"><label>Start Date *</label><input type="date" id="pi-start" required onchange="autoEnd()"></div>
+<div class="fi"><label>Status *</label><select id="pi-status" required><option>Scheduled</option><option>Active</option><option>De-stage Scheduled</option><option>Completed</option></select></div>
+<div class="fi"><label>Start Date</label><input type="date" id="pi-start" onchange="autoEnd()"></div>
 <div class="fi"><label>End Date</label><input type="date" id="pi-end"></div>
 <div class="fi full"><label>Notes</label><textarea id="pi-notes" rows="2"></textarea></div>
 </div></div>
@@ -356,7 +371,7 @@ const [r1,r2,r3]=await Promise.all([
   sb.from('payroll').select('*')
 ]);
 inv=(r1.data||[]).map(r=>({id:r.id,name:r.name,cat:r.category,size:r.size,qty:r.qty,cost:Number(r.cost),status:r.status,notes:r.notes,images:r.images||[]}));
-proj=(r2.data||[]).map(r=>({id:r.id,name:r.name,address:r.address,bu:r.bu,agent:r.agent,start:r.start_date,end:r.end_date,notes:r.notes,invoice:Number(r.invoice),deposit:Number(r.deposit),rooms:r.rooms||{},labor:r.labor||[],logRuns:r.log_runs||0,logMiles:Number(r.log_miles)||0,logCPM:Number(r.log_cpm)||0.67,storPulls:r.stor_pulls||0,storCPP:Number(r.stor_cpp)||0,miscLines:r.misc_lines||[]}));
+proj=(r2.data||[]).map(r=>({id:r.id,name:r.name,address:r.address,bu:r.bu,agent:r.agent,start:r.start_date,end:r.end_date,notes:r.notes,status:r.status||'Scheduled',invoice:Number(r.invoice),deposit:Number(r.deposit),rooms:r.rooms||{},labor:r.labor||[],logRuns:r.log_runs||0,logMiles:Number(r.log_miles)||0,logCPM:Number(r.log_cpm)||0.67,storPulls:r.stor_pulls||0,storCPP:Number(r.stor_cpp)||0,miscLines:r.misc_lines||[]}));
 payD={};(r3.data||[]).forEach(r=>{payD[r.week_start]=r.entries||[]});
 _loading=false;
 }
@@ -368,7 +383,7 @@ await sb.from('inventory').upsert(row,{onConflict:'id'});
 async function delInvItem(id){await sb.from('inventory').delete().eq('id',id)}
 
 async function savProjItem(p){
-const row={id:p.id,name:p.name,address:p.address||null,bu:p.bu,agent:p.agent||null,start_date:p.start||null,end_date:p.end||null,notes:p.notes||null,invoice:p.invoice,deposit:p.deposit,rooms:p.rooms||{},labor:p.labor||[],log_runs:p.logRuns||0,log_miles:p.logMiles||0,log_cpm:p.logCPM||0.67,stor_pulls:p.storPulls||0,stor_cpp:p.storCPP||0,misc_lines:p.miscLines||[],updated_at:new Date().toISOString()};
+const row={id:p.id,name:p.name,address:p.address||null,bu:p.bu,agent:p.agent||null,start_date:p.start||null,end_date:p.end||null,notes:p.notes||null,status:p.status||'Scheduled',invoice:p.invoice,deposit:p.deposit,rooms:p.rooms||{},labor:p.labor||[],log_runs:p.logRuns||0,log_miles:p.logMiles||0,log_cpm:p.logCPM||0.67,stor_pulls:p.storPulls||0,stor_cpp:p.storCPP||0,misc_lines:p.miscLines||[],updated_at:new Date().toISOString()};
 await sb.from('projects').upsert(row,{onConflict:'id'});
 }
 async function delProjItem(id){await sb.from('projects').delete().eq('id',id)}
@@ -493,12 +508,17 @@ const cpp=pieces>0?totalCost/pieces:0;
 const balance=invoice-(p.deposit||0);
 return{totalLabor,totalLog,totalStor,totalMisc,totalInvCost,totalCost,invoice,profit,margin,laborPct,cpp,balance,pieces};
 }
-function isActive(p){return!p.end||p.end>=today()}
+function isActive(p){return p.status==='Active'}
 function daysUntilEnd(p){if(!p.end)return 999;return Math.ceil((new Date(p.end)-new Date())/86400000)}
+function projStatusBadge(s){if(s==='Active')return'<span class="badge bg">Active</span>';if(s==='Scheduled')return'<span class="badge bo">Scheduled</span>';if(s==='De-stage Scheduled')return'<span class="badge by">De-stage</span>';if(s==='Completed')return'<span class="badge bk">Completed</span>';return'<span class="badge">'+esc(s||'—')+'</span>'}
 
 // ===================== DASHBOARD =====================
 function rDash(){
-const active=proj.filter(isActive);
+const scheduled=proj.filter(p=>p.status==='Scheduled');
+const active=proj.filter(p=>p.status==='Active');
+const destage=proj.filter(p=>p.status==='De-stage Scheduled');
+const completed=proj.filter(p=>p.status==='Completed');
+
 const totalItems=inv.reduce((s,i)=>s+i.qty,0);
 let staged=0,available=0,shortages=0;
 inv.forEach(i=>{const a=getAvail(i.id);const st=getStaged(i.id);staged+=st;available+=a;if(a===0&&i.qty>0)shortages++});
@@ -508,27 +528,67 @@ const avgMargin=margins.length>0?margins.reduce((a,b)=>a+b,0)/margins.length:0;
 const mc=avgMargin>=50?'g':avgMargin>=30?'y':'r';
 
 $('dash-cards').innerHTML=`
-<div class="card"><div class="lbl">Active Projects</div><div class="val">${active.length}</div></div>
+<div class="card"><div class="lbl">Scheduled</div><div class="val">${scheduled.length}</div></div>
+<div class="card"><div class="lbl">Active</div><div class="val g">${active.length}</div></div>
+<div class="card"><div class="lbl">De-stage</div><div class="val y">${destage.length}</div></div>
+<div class="card"><div class="lbl">Completed</div><div class="val">${completed.length}</div></div>
 <div class="card"><div class="lbl">Total Inventory</div><div class="val">${totalItems}</div></div>
 <div class="card"><div class="lbl">Items Staged</div><div class="val">${staged}</div></div>
-<div class="card"><div class="lbl">In Warehouse</div><div class="val">${available}</div></div>
 <div class="card"><div class="lbl">Shortages</div><div class="val ${shortages>0?'r':''}">${shortages}</div></div>
 <div class="card"><div class="lbl">Total Revenue</div><div class="val">${fm(totalRev)}</div></div>
 <div class="card"><div class="lbl">Total Profit</div><div class="val ${totalProfit>=0?'g':'r'}">${fm(totalProfit)}</div></div>
 <div class="card"><div class="lbl">Avg Margin</div><div class="val ${mc}">${margins.length?pc(avgMargin):'—'}</div></div>`;
 
 // Renewal alerts
-const alerts=proj.filter(p=>{const d=daysUntilEnd(p);return d>=0&&d<=7});
-$('dash-alerts').innerHTML=alerts.map(p=>`<div class="alert-row"><span>&#9888; <strong>${esc(p.name)}</strong> ends ${p.end} (${daysUntilEnd(p)} days)</span><button class="btn btn-s btn-o" onclick="go('pd');openPD('${p.id}')">View</button></div>`).join('');
+const alerts=proj.filter(p=>{const d=daysUntilEnd(p);return d>=0&&d<=7&&p.status!=='Completed'});
+$('dash-alerts').innerHTML=alerts.map(p=>`<div class="alert-row"><span>&#9888; <strong>${esc(p.name)}</strong> ends ${p.end} (${daysUntilEnd(p)} days)</span><button class="btn btn-s btn-o" onclick="openPD('${p.id}')">View</button></div>`).join('');
 
-// Active projects table
-$('dash-proj').innerHTML=active.map(p=>{const c=projCalc(p);return`
+// Scheduled
+$('dash-scheduled').innerHTML=scheduled.map(p=>{const c=projCalc(p);return`
+<tr style="cursor:pointer" onclick="openPD('${p.id}')">
+<td><strong>${esc(p.name)}</strong><br><span style="color:var(--muted);font-size:.75rem">${esc(p.address||'')}</span></td>
+<td>${esc(p.bu)}</td><td>${p.start||'—'}</td>
+<td class="tr">${fm(c.invoice)}</td>
+<td><button class="btn btn-g btn-s" onclick="event.stopPropagation();quickStatus('${p.id}','Active')">Mark Active</button></td></tr>`}).join('')||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">No scheduled projects</td></tr>';
+
+// Active
+$('dash-active').innerHTML=active.map(p=>{const c=projCalc(p);return`
 <tr style="cursor:pointer" onclick="openPD('${p.id}')">
 <td><strong>${esc(p.name)}</strong><br><span style="color:var(--muted);font-size:.75rem">${esc(p.address||'')}</span></td>
 <td>${esc(p.bu)}</td><td>${p.end||'—'}</td>
 <td class="tr">${fm(c.invoice)}</td>
 <td class="tr" style="font-weight:600;color:${c.profit>=0?'var(--green)':'var(--red)'}">${fm(c.profit)}</td>
-<td class="tr">${mbadge(c.margin)}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">No active projects</td></tr>';
+<td class="tr">${mbadge(c.margin)}</td>
+<td><button class="btn btn-s by" style="cursor:pointer;border:none;font-family:inherit" onclick="event.stopPropagation();quickStatus('${p.id}','De-stage Scheduled')">De-stage</button></td></tr>`}).join('')||'<tr><td colspan="7" style="color:var(--muted);padding:16px;text-align:center">No active projects</td></tr>';
+
+// De-stage
+$('dash-destage').innerHTML=destage.map(p=>{const c=projCalc(p);return`
+<tr style="cursor:pointer" onclick="openPD('${p.id}')">
+<td><strong>${esc(p.name)}</strong><br><span style="color:var(--muted);font-size:.75rem">${esc(p.address||'')}</span></td>
+<td>${esc(p.bu)}</td><td>${p.end||'—'}</td>
+<td class="tr">${fm(c.invoice)}</td>
+<td class="tr" style="font-weight:600;color:${c.profit>=0?'var(--green)':'var(--red)'}">${fm(c.profit)}</td>
+<td class="tr">${mbadge(c.margin)}</td>
+<td><button class="btn btn-g btn-s" onclick="event.stopPropagation();quickStatus('${p.id}','Completed')">Complete</button></td></tr>`}).join('')||'<tr><td colspan="7" style="color:var(--muted);padding:16px;text-align:center">No de-stage projects</td></tr>';
+
+// Completed
+$('dash-completed').innerHTML=completed.map(p=>{const c=projCalc(p);return`
+<tr style="cursor:pointer" onclick="openPD('${p.id}')">
+<td><strong>${esc(p.name)}</strong><br><span style="color:var(--muted);font-size:.75rem">${esc(p.address||'')}</span></td>
+<td>${esc(p.bu)}</td><td>${p.end||'—'}</td>
+<td class="tr">${fm(c.invoice)}</td>
+<td class="tr" style="font-weight:600;color:${c.profit>=0?'var(--green)':'var(--red)'}">${fm(c.profit)}</td>
+<td class="tr">${mbadge(c.margin)}</td>
+<td></td></tr>`}).join('')||'<tr><td colspan="7" style="color:var(--muted);padding:16px;text-align:center">No completed projects</td></tr>';
+}
+
+// Quick status change from dashboard
+async function quickStatus(pid,newStatus){
+const p=proj.find(x=>x.id===pid);if(!p)return;
+p.status=newStatus;
+await savProjItem(p);
+rDash();
+toast(p.name+' → '+newStatus);
 }
 
 function mbadge(m){if(m>=50)return`<span class="badge bg">${pc(m)}</span>`;if(m>=30)return`<span class="badge by">${pc(m)}</span>`;return`<span class="badge br">${pc(m)}</span>`}
@@ -620,8 +680,7 @@ function rProj(){
 const bu=$('fp-bu').value,st=$('fp-stat').value,q=$('fp-q').value.toLowerCase();
 let f=proj.filter(p=>{
   if(bu&&p.bu!==bu)return false;
-  if(st==='Active'&&!isActive(p))return false;
-  if(st==='Ended'&&isActive(p))return false;
+  if(st&&(p.status||'Scheduled')!==st)return false;
   if(q&&!p.name.toLowerCase().includes(q)&&!(p.address||'').toLowerCase().includes(q))return false;
   return true;
 });
@@ -635,7 +694,7 @@ tb.innerHTML=f.map(p=>{const c=projCalc(p);const act=isActive(p);return`
 <td class="tr">${fm(c.invoice)}</td>
 <td class="tr" style="font-weight:600;color:${c.profit>=0?'var(--green)':'var(--red)'}">${fm(c.profit)}</td>
 <td class="tr">${mbadge(c.margin)}</td>
-<td><span class="badge ${act?'bg':'by'}">${act?'Active':'Ended'}</span></td>
+<td>${projStatusBadge(p.status)}</td>
 <td><button class="btn btn-o btn-s" onclick="event.stopPropagation();openProjModal('${p.id}')">Edit</button> <button class="btn btn-d btn-s" onclick="event.stopPropagation();delProj('${p.id}')">Del</button></td></tr>`}).join('');
 }
 
@@ -643,8 +702,8 @@ function autoEnd(){const s=$('pi-start').value;if(s&&!$('pi-end').value){const d
 
 function openProjModal(id){
 editProjId=id||null;$('proj-mt').textContent=id?'Edit Project':'New Project';
-if(id){const p=proj.find(x=>x.id===id);if(!p)return;$('pi-name').value=p.name;$('pi-addr').value=p.address||'';$('pi-bu').value=p.bu;$('pi-agent').value=p.agent||'';$('pi-start').value=p.start||'';$('pi-end').value=p.end||'';$('pi-notes').value=p.notes||'';$('pi-inv').value=p.invoice||0;$('pi-dep').value=p.deposit||0}
-else{$('proj-form').reset();$('pi-inv').value=0;$('pi-dep').value=0}
+if(id){const p=proj.find(x=>x.id===id);if(!p)return;$('pi-name').value=p.name;$('pi-addr').value=p.address||'';$('pi-bu').value=p.bu;$('pi-status').value=p.status||'Scheduled';$('pi-agent').value=p.agent||'';$('pi-start').value=p.start||'';$('pi-end').value=p.end||'';$('pi-notes').value=p.notes||'';$('pi-inv').value=p.invoice||0;$('pi-dep').value=p.deposit||0}
+else{$('proj-form').reset();$('pi-status').value='Scheduled';$('pi-inv').value=0;$('pi-dep').value=0}
 $('proj-mo').classList.add('open');
 }
 function closeProjModal(){$('proj-mo').classList.remove('open');editProjId=null}
@@ -654,12 +713,13 @@ const name=$('pi-name').value.trim(),addr=$('pi-addr').value.trim(),bu=$('pi-bu'
 if(!name||!bu){toast('Name and business unit required','error');return}
 const start=$('pi-start').value,end=$('pi-end').value;
 let p;
+const status=$('pi-status').value;
 if(editProjId){
   p=proj.find(x=>x.id===editProjId);if(!p)return;
-  p.name=name;p.address=addr;p.bu=bu;p.agent=$('pi-agent').value.trim();p.start=start;p.end=end;p.notes=$('pi-notes').value.trim();
+  p.name=name;p.address=addr;p.bu=bu;p.status=status;p.agent=$('pi-agent').value.trim();p.start=start;p.end=end;p.notes=$('pi-notes').value.trim();
   p.invoice=parseFloat($('pi-inv').value)||0;p.deposit=parseFloat($('pi-dep').value)||0;
 }else{
-  p={id:uid(),name,address:addr,bu,agent:$('pi-agent').value.trim(),start,end,notes:$('pi-notes').value.trim(),
+  p={id:uid(),name,address:addr,bu,status,agent:$('pi-agent').value.trim(),start,end,notes:$('pi-notes').value.trim(),
     invoice:parseFloat($('pi-inv').value)||0,deposit:parseFloat($('pi-dep').value)||0,
     rooms:{},labor:[],logRuns:0,logMiles:0,logCPM:0.67,storPulls:0,storCPP:0,miscLines:[]};
   proj.push(p);
@@ -720,7 +780,7 @@ $('v-pd').innerHTML=`
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
 <button class="btn btn-o btn-s" onclick="go('proj')">&larr; Back</button>
 <h1 style="font-size:1.3rem">${esc(p.name)}</h1>
-<span class="badge ${isActive(p)?'bg':'by'}">${isActive(p)?'Active':'Ended'}</span>
+${projStatusBadge(p.status)}
 </div>
 <div class="dg">
 <div class="di"><div class="dl">Address</div><div class="dv">${esc(p.address||'—')}</div></div>
@@ -795,7 +855,7 @@ ${pdTab==='pnl'?`
 
 <div style="display:flex;gap:8px;margin-top:20px">
 <button class="btn btn-o" onclick="openProjModal('${p.id}')">Edit Project Info</button>
-${!isActive(p)?`<button class="btn btn-g" onclick="returnAll('${p.id}')">Return All Inventory</button>`:''}
+${(p.status==='De-stage Scheduled'||p.status==='Completed')?`<button class="btn btn-g" onclick="returnAll('${p.id}')">Return All Inventory</button>`:''}
 <button class="btn btn-d" onclick="delProj('${p.id}');go('proj')">Delete Project</button>
 </div>`;
 }
@@ -897,7 +957,7 @@ if(sel==='pnl'){
   let html='<table><thead><tr><th>Project</th><th>Status</th><th>Start</th><th>End</th><th class="tr">Rooms</th><th class="tr">Pieces</th></tr></thead><tbody>';
   proj.forEach(p=>{const c=projCalc(p);const rmCount=Object.keys(p.rooms||{}).length;
     rptData.push([p.name,isActive(p)?'Active':'Ended',p.start||'',p.end||'',rmCount,c.pieces]);
-    html+=`<tr><td>${esc(p.name)}</td><td><span class="badge ${isActive(p)?'bg':'by'}">${isActive(p)?'Active':'Ended'}</span></td><td>${p.start||'—'}</td><td>${p.end||'—'}</td><td class="tr">${rmCount}</td><td class="tr">${c.pieces}</td></tr>`});
+    html+=`<tr><td>${esc(p.name)}</td><td>${projStatusBadge(p.status)}</td><td>${p.start||'—'}</td><td>${p.end||'—'}</td><td class="tr">${rmCount}</td><td class="tr">${c.pieces}</td></tr>`});
   html+='</tbody></table>';out.innerHTML=html;
 }
 }
