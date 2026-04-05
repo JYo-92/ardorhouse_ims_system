@@ -376,17 +376,18 @@ payD={};(r3.data||[]).forEach(r=>{payD[r.week_start]=r.entries||[]});
 _loading=false;
 }
 
+function getAuthToken(){
+try{const d=JSON.parse(localStorage.getItem('sb-wdyrngcknoswtuhawzgj-auth-token'));return d?.access_token||null}catch(e){return null}
+}
 async function sbPost(table,row){
-const sess=await sb.auth.getSession();
-const token=sess?.data?.session?.access_token;
+const token=getAuthToken();
 const headers={'Content-Type':'application/json','apikey':SB_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'};
 if(token)headers['Authorization']='Bearer '+token;
 const resp=await fetch(SB_URL+'/rest/v1/'+table,{method:'POST',headers:headers,body:JSON.stringify(row)});
 if(!resp.ok){const txt=await resp.text();throw new Error(txt)}
 }
 async function sbDel(table,col,val){
-const sess=await sb.auth.getSession();
-const token=sess?.data?.session?.access_token;
+const token=getAuthToken();
 const headers={'apikey':SB_KEY};
 if(token)headers['Authorization']='Bearer '+token;
 const resp=await fetch(SB_URL+'/rest/v1/'+table+'?'+col+'=eq.'+encodeURIComponent(val),{method:'DELETE',headers:headers});
