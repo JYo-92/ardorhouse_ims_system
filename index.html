@@ -384,7 +384,8 @@ async function delInvItem(id){await sb.from('inventory').delete().eq('id',id)}
 
 async function savProjItem(p){
 const row={id:p.id,name:p.name,address:p.address||null,bu:p.bu,agent:p.agent||null,start_date:p.start||null,end_date:p.end||null,notes:p.notes||null,status:p.status||'Scheduled',invoice:p.invoice,deposit:p.deposit,rooms:p.rooms||{},labor:p.labor||[],log_runs:p.logRuns||0,log_miles:p.logMiles||0,log_cpm:p.logCPM||0.67,stor_pulls:p.storPulls||0,stor_cpp:p.storCPP||0,misc_lines:p.miscLines||[],updated_at:new Date().toISOString()};
-await sb.from('projects').upsert(row,{onConflict:'id'});
+const{error}=await sb.from('projects').upsert(row,{onConflict:'id'});
+if(error)throw new Error(error.message);
 }
 async function delProjItem(id){await sb.from('projects').delete().eq('id',id)}
 
@@ -709,10 +710,12 @@ $('proj-mo').classList.add('open');
 function closeProjModal(){$('proj-mo').classList.remove('open');editProjId=null}
 
 async function saveProj(){
+const btn=document.querySelector('#proj-mo .mf .btn-p');
 try{
 const name=$('pi-name').value.trim(),addr=$('pi-addr').value.trim(),bu=$('pi-bu').value;
 if(!name){toast('Project name is required','error');return}
 if(!bu){toast('Business unit is required','error');return}
+btn.disabled=true;btn.textContent='Saving...';
 const start=$('pi-start').value,end=$('pi-end').value;
 const status=$('pi-status').value;
 let p;
@@ -728,11 +731,15 @@ if(editProjId){
   proj.push(p);
 }
 await savProjItem(p);
+btn.disabled=false;btn.textContent='Save Project';
 closeProjModal();
 toast(isNew?'Project created — opening builder...':'Project updated');
-// After save, go directly to the project builder page
 openPD(p.id);
-}catch(e){console.error('saveProj error:',e);toast('Error saving project: '+e.message,'error')}
+}catch(e){
+console.error('saveProj error:',e);
+toast('Error saving project: '+e.message,'error');
+if(btn){btn.disabled=false;btn.textContent='Save Project'}
+}
 }
 
 async function delProj(id){if(!confirm('Delete this project and return all inventory?'))return;
