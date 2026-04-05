@@ -300,7 +300,13 @@ tbody tr:hover{background:#f9fafb}
 </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+// ===================== SUPABASE =====================
+const SB_URL='https://wdyrngcknoswtuhawzgj.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkeXJuZ2Nrbm9zd3R1aGF3emdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTE5NjAsImV4cCI6MjA5MDk4Nzk2MH0.Wpu-RaFsHjmr8rGkoXjvpqQ6B-KaInqKjE1N-O0Kf3o';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+
 // ===================== CONSTANTS =====================
 const CATS=['Sofa','Coffee Table','Accent Chair','Rug','Side Table','Dining Table','Dining Chair','Bed Frame','Nightstand','Bench','Ottoman','Mattress','Counter Chairs','Console','Sideboard','Outdoor Seating Set','Outdoor Dining Set'];
 const SIZES={'Bed Frame':['Twin','Full','Queen','King'],'Mattress':['Twin','Full','Queen','King'],'Rug':['5x7','8x10','10x14','Round','Cowhide']};
@@ -310,14 +316,39 @@ const BUS=['Staging','Interior Design','Vacation Rental Design','Furniture Renta
 const PR_ROLES=['Lead Stager','Stager','Driver/Installer'];
 
 // ===================== DATA =====================
-const K={inv:'ah_inv',proj:'ah_proj',pay:'ah_pay'};
-let inv=JSON.parse(localStorage.getItem(K.inv)||'[]');
-let proj=JSON.parse(localStorage.getItem(K.proj)||'[]');
-let payD=JSON.parse(localStorage.getItem(K.pay)||'{}');
+let inv=[],proj=[],payD={};
 let editInvId=null,editProjId=null,assignProjId=null,assignRoom=null;
+let _loading=false;
 
-function sav(k,d){localStorage.setItem(k,JSON.stringify(d))}
-function savAll(){sav(K.inv,inv);sav(K.proj,proj);sav(K.pay,payD)}
+// ---- Supabase CRUD helpers ----
+async function loadAll(){
+_loading=true;
+const [r1,r2,r3]=await Promise.all([
+  sb.from('inventory').select('*').order('created_at',{ascending:false}),
+  sb.from('projects').select('*').order('created_at',{ascending:false}),
+  sb.from('payroll').select('*')
+]);
+inv=(r1.data||[]).map(r=>({id:r.id,name:r.name,cat:r.category,size:r.size,qty:r.qty,cost:Number(r.cost),status:r.status,notes:r.notes,images:r.images||[]}));
+proj=(r2.data||[]).map(r=>({id:r.id,name:r.name,address:r.address,bu:r.bu,agent:r.agent,start:r.start_date,end:r.end_date,notes:r.notes,invoice:Number(r.invoice),deposit:Number(r.deposit),rooms:r.rooms||{},labor:r.labor||[],logRuns:r.log_runs||0,logMiles:Number(r.log_miles)||0,logCPM:Number(r.log_cpm)||0.67,storPulls:r.stor_pulls||0,storCPP:Number(r.stor_cpp)||0,miscLines:r.misc_lines||[]}));
+payD={};(r3.data||[]).forEach(r=>{payD[r.week_start]=r.entries||[]});
+_loading=false;
+}
+
+async function savInvItem(item){
+const row={id:item.id,name:item.name,category:item.cat,size:item.size||null,qty:item.qty,cost:item.cost,status:item.status,notes:item.notes||null,images:item.images||[],updated_at:new Date().toISOString()};
+await sb.from('inventory').upsert(row,{onConflict:'id'});
+}
+async function delInvItem(id){await sb.from('inventory').delete().eq('id',id)}
+
+async function savProjItem(p){
+const row={id:p.id,name:p.name,address:p.address||null,bu:p.bu,agent:p.agent||null,start_date:p.start||null,end_date:p.end||null,notes:p.notes||null,invoice:p.invoice,deposit:p.deposit,rooms:p.rooms||{},labor:p.labor||[],log_runs:p.logRuns||0,log_miles:p.logMiles||0,log_cpm:p.logCPM||0.67,stor_pulls:p.storPulls||0,stor_cpp:p.storCPP||0,misc_lines:p.miscLines||[],updated_at:new Date().toISOString()};
+await sb.from('projects').upsert(row,{onConflict:'id'});
+}
+async function delProjItem(id){await sb.from('projects').delete().eq('id',id)}
+
+async function savPayWeek(week,entries){
+await sb.from('payroll').upsert({week_start:week,entries,updated_at:new Date().toISOString()},{onConflict:'week_start'});
+}
 function $(id){return document.getElementById(id)}
 function fm(n){return'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function pc(n){return(n||0).toFixed(1)+'%'}
@@ -504,18 +535,27 @@ $('inv-mo').classList.add('open');
 }
 function closeInvModal(){$('inv-mo').classList.remove('open');editInvId=null}
 
-function saveInv(){
+async function saveInv(){
 const name=$('ii-name').value.trim(),cat=$('ii-cat').value,size=$('ii-size').value,qty=parseInt($('ii-qty').value)||1,cost=parseFloat($('ii-cost').value)||0,status=$('ii-status').value,notes=$('ii-notes').value.trim();
 if(!name||!cat){toast('Name and category required','error');return}
-const images=[...pendingImgs];
+// Upload images to Supabase Storage, keep existing URLs
+const images=[];
+for(const img of pendingImgs){
+  if(img.startsWith('http')){images.push(img);continue}
+  // base64 -> blob -> upload
+  const res=await fetch(img);const blob=await res.blob();
+  const fname=`${uid()}.${blob.type.split('/')[1]||'png'}`;
+  const{data,error}=await sb.storage.from('inventory-images').upload(fname,blob,{contentType:blob.type});
+  if(!error){const{data:urlData}=sb.storage.from('inventory-images').getPublicUrl(fname);images.push(urlData.publicUrl)}
+}
 const item={id:editInvId||uid(),name,cat,size,qty,cost,status,notes,images};
 if(editInvId){const idx=inv.findIndex(x=>x.id===editInvId);if(idx>=0)inv[idx]=item}else inv.push(item);
-sav(K.inv,inv);closeInvModal();rInv();toast(editInvId?'Item updated':'Item added');
+await savInvItem(item);closeInvModal();rInv();toast(editInvId?'Item updated':'Item added');
 }
 
-function delInv(id){if(!confirm('Delete this inventory item? It will be removed from all projects.'))return;
-proj.forEach(p=>{if(p.rooms){Object.keys(p.rooms).forEach(rm=>{p.rooms[rm]=(p.rooms[rm]||[]).filter(a=>a.itemId!==id)})}});
-inv=inv.filter(i=>i.id!==id);savAll();rInv();toast('Item deleted')}
+async function delInv(id){if(!confirm('Delete this inventory item? It will be removed from all projects.'))return;
+for(const p of proj){if(p.rooms){let changed=false;Object.keys(p.rooms).forEach(rm=>{const before=p.rooms[rm].length;p.rooms[rm]=(p.rooms[rm]||[]).filter(a=>a.itemId!==id);if(p.rooms[rm].length!==before)changed=true});if(changed)await savProjItem(p)}}
+inv=inv.filter(i=>i.id!==id);await delInvItem(id);rInv();toast('Item deleted')}
 
 function csvInv(){
 if(!inv.length){toast('No data','error');return}
@@ -558,24 +598,26 @@ $('proj-mo').classList.add('open');
 }
 function closeProjModal(){$('proj-mo').classList.remove('open');editProjId=null}
 
-function saveProj(){
+async function saveProj(){
 const name=$('pi-name').value.trim(),addr=$('pi-addr').value.trim(),bu=$('pi-bu').value;
 if(!name||!bu){toast('Name and business unit required','error');return}
 const start=$('pi-start').value,end=$('pi-end').value;
+let p;
 if(editProjId){
-  const p=proj.find(x=>x.id===editProjId);if(!p)return;
+  p=proj.find(x=>x.id===editProjId);if(!p)return;
   p.name=name;p.address=addr;p.bu=bu;p.agent=$('pi-agent').value.trim();p.start=start;p.end=end;p.notes=$('pi-notes').value.trim();
   p.invoice=parseFloat($('pi-inv').value)||0;p.deposit=parseFloat($('pi-dep').value)||0;
 }else{
-  proj.push({id:uid(),name,address:addr,bu,agent:$('pi-agent').value.trim(),start,end,notes:$('pi-notes').value.trim(),
+  p={id:uid(),name,address:addr,bu,agent:$('pi-agent').value.trim(),start,end,notes:$('pi-notes').value.trim(),
     invoice:parseFloat($('pi-inv').value)||0,deposit:parseFloat($('pi-dep').value)||0,
-    rooms:{},labor:[],logRuns:0,logMiles:0,logCPM:0.67,storPulls:0,storCPP:0,miscLines:[]});
+    rooms:{},labor:[],logRuns:0,logMiles:0,logCPM:0.67,storPulls:0,storCPP:0,miscLines:[]};
+  proj.push(p);
 }
-sav(K.proj,proj);closeProjModal();rProj();toast(editProjId?'Project updated':'Project created');
+await savProjItem(p);closeProjModal();rProj();toast(editProjId?'Project updated':'Project created');
 }
 
-function delProj(id){if(!confirm('Delete this project and return all inventory?'))return;
-proj=proj.filter(p=>p.id!==id);sav(K.proj,proj);rProj();toast('Project deleted')}
+async function delProj(id){if(!confirm('Delete this project and return all inventory?'))return;
+proj=proj.filter(p=>p.id!==id);await delProjItem(id);rProj();toast('Project deleted')}
 
 // ===================== PROJECT DETAIL =====================
 let pdTab='rooms';
@@ -708,8 +750,8 @@ ${!isActive(p)?`<button class="btn btn-g" onclick="returnAll('${p.id}')">Return 
 }
 
 // ---- ROOM MANAGEMENT ----
-function addRoom(pid){const sel=$('pd-add-room');const rm=sel.value;if(!rm)return;const p=proj.find(x=>x.id===pid);if(!p)return;if(!p.rooms)p.rooms={};if(p.rooms[rm])return toast('Room already added','error');p.rooms[rm]=[];sav(K.proj,proj);renderPD(p);toast('Room added')}
-function delRoom(pid,rm){if(!confirm('Remove this room and unassign all furniture?'))return;const p=proj.find(x=>x.id===pid);if(!p||!p.rooms)return;delete p.rooms[rm];sav(K.proj,proj);renderPD(p);toast('Room removed')}
+async function addRoom(pid){const sel=$('pd-add-room');const rm=sel.value;if(!rm)return;const p=proj.find(x=>x.id===pid);if(!p)return;if(!p.rooms)p.rooms={};if(p.rooms[rm])return toast('Room already added','error');p.rooms[rm]=[];await savProjItem(p);renderPD(p);toast('Room added')}
+async function delRoom(pid,rm){if(!confirm('Remove this room and unassign all furniture?'))return;const p=proj.find(x=>x.id===pid);if(!p||!p.rooms)return;delete p.rooms[rm];await savProjItem(p);renderPD(p);toast('Room removed')}
 
 // ---- ASSIGN FURNITURE ----
 function openAssign(pid,rm){
@@ -725,39 +767,38 @@ $('assign-mo').classList.add('open');
 }
 function closeAssignModal(){$('assign-mo').classList.remove('open')}
 
-function confirmAssign(){
+async function confirmAssign(){
 const itemId=$('as-item').value;const qty=parseInt($('as-qty').value)||1;
 if(!itemId){toast('Select an item','error');return}
 const avail=getAvail(itemId);
 if(qty>avail){toast('Not enough available ('+avail+')','error');return}
 const p=proj.find(x=>x.id===assignProjId);if(!p||!p.rooms||!p.rooms[assignRoom])return;
-// check if already assigned in this room, increment
 const existing=p.rooms[assignRoom].find(a=>a.itemId===itemId);
 if(existing)existing.qty+=qty;else p.rooms[assignRoom].push({itemId,qty});
-sav(K.proj,proj);closeAssignModal();renderPD(p);toast('Furniture assigned');
+await savProjItem(p);closeAssignModal();renderPD(p);toast('Furniture assigned');
 }
 
-function unassign(pid,rm,idx){
+async function unassign(pid,rm,idx){
 const p=proj.find(x=>x.id===pid);if(!p||!p.rooms||!p.rooms[rm])return;
-p.rooms[rm].splice(idx,1);sav(K.proj,proj);renderPD(p);toast('Item removed from room');
+p.rooms[rm].splice(idx,1);await savProjItem(p);renderPD(p);toast('Item removed from room');
 }
 
-function returnAll(pid){
-const p=proj.find(x=>x.id===pid);if(!p)return;p.rooms={};sav(K.proj,proj);renderPD(p);toast('All inventory returned');
+async function returnAll(pid){
+const p=proj.find(x=>x.id===pid);if(!p)return;p.rooms={};await savProjItem(p);renderPD(p);toast('All inventory returned');
 }
 
 // ---- LABOR ----
-function addLabor(pid){const p=proj.find(x=>x.id===pid);if(!p)return;if(!p.labor)p.labor=[];p.labor.push({role:'Stager',workers:1,hours:0,rate:20});sav(K.proj,proj);renderPD(p)}
-function updLabor(pid,i,f,v){const p=proj.find(x=>x.id===pid);if(!p||!p.labor[i])return;p.labor[i][f]=v;sav(K.proj,proj);renderPD(p)}
-function rmLabor(pid,i){const p=proj.find(x=>x.id===pid);if(!p)return;p.labor.splice(i,1);sav(K.proj,proj);renderPD(p)}
+async function addLabor(pid){const p=proj.find(x=>x.id===pid);if(!p)return;if(!p.labor)p.labor=[];p.labor.push({role:'Stager',workers:1,hours:0,rate:20});await savProjItem(p);renderPD(p)}
+async function updLabor(pid,i,f,v){const p=proj.find(x=>x.id===pid);if(!p||!p.labor[i])return;p.labor[i][f]=v;await savProjItem(p);renderPD(p)}
+async function rmLabor(pid,i){const p=proj.find(x=>x.id===pid);if(!p)return;p.labor.splice(i,1);await savProjItem(p);renderPD(p)}
 
 // ---- PROJ FIELDS ----
-function updProjF(pid,f,v){const p=proj.find(x=>x.id===pid);if(!p)return;p[f]=v;sav(K.proj,proj);renderPD(p)}
+async function updProjF(pid,f,v){const p=proj.find(x=>x.id===pid);if(!p)return;p[f]=v;await savProjItem(p);renderPD(p)}
 
 // ---- MISC ----
-function addMisc(pid){const p=proj.find(x=>x.id===pid);if(!p)return;if(!p.miscLines)p.miscLines=[];p.miscLines.push({desc:'',amount:0});sav(K.proj,proj);renderPD(p)}
-function updMisc(pid,i,f,v){const p=proj.find(x=>x.id===pid);if(!p||!p.miscLines[i])return;p.miscLines[i][f]=v;sav(K.proj,proj);renderPD(p)}
-function rmMisc(pid,i){const p=proj.find(x=>x.id===pid);if(!p)return;p.miscLines.splice(i,1);sav(K.proj,proj);renderPD(p)}
+async function addMisc(pid){const p=proj.find(x=>x.id===pid);if(!p)return;if(!p.miscLines)p.miscLines=[];p.miscLines.push({desc:'',amount:0});await savProjItem(p);renderPD(p)}
+async function updMisc(pid,i,f,v){const p=proj.find(x=>x.id===pid);if(!p||!p.miscLines[i])return;p.miscLines[i][f]=v;await savProjItem(p);renderPD(p)}
+async function rmMisc(pid,i){const p=proj.find(x=>x.id===pid);if(!p)return;p.miscLines.splice(i,1);await savProjItem(p);renderPD(p)}
 
 // ===================== REPORTS =====================
 let rptData=[];
@@ -816,7 +857,7 @@ function csvRpt(){if(rptData.length<2){toast('No data','error');return}dlCSV('ar
 function getMonday(){const d=new Date();const day=d.getDay();const diff=d.getDate()-day+(day===0?-6:1);return new Date(d.setDate(diff)).toISOString().slice(0,10)}
 function initPay(){if(!$('pr-week').value)$('pr-week').value=getMonday();rPay()}
 
-function addPR(){const w=getCurrentPRWeek();if(!w){toast('Select a week','error');return}if(!payD[w])payD[w]=[];payD[w].push({name:'',role:'Stager',days:[0,0,0,0,0,0,0],rate:20});sav(K.pay,payD);rPay()}
+async function addPR(){const w=getCurrentPRWeek();if(!w){toast('Select a week','error');return}if(!payD[w])payD[w]=[];payD[w].push({name:'',role:'Stager',days:[0,0,0,0,0,0,0],rate:20});await savPayWeek(w,payD[w]);rPay()}
 function getCurrentPRWeek(){return $('pr-week').value}
 
 function rPay(){
@@ -843,9 +884,9 @@ $('pay-sum').innerHTML=`<div class="card"><div class="lbl">Laborers</div><div cl
 <div class="card"><div class="lbl">Weekly Total</div><div class="val" style="color:var(--accent)">${fm(gP)}</div></div>`;
 }
 
-function updPR(i,di,v){const w=getCurrentPRWeek();if(!payD[w]||!payD[w][i])return;payD[w][i].days[di]=parseFloat(v)||0;sav(K.pay,payD);rPay()}
-function updPRF(i,f,v){const w=getCurrentPRWeek();if(!payD[w]||!payD[w][i])return;payD[w][i][f]=v;sav(K.pay,payD);rPay()}
-function rmPR(i){const w=getCurrentPRWeek();if(!payD[w])return;payD[w].splice(i,1);sav(K.pay,payD);rPay()}
+async function updPR(i,di,v){const w=getCurrentPRWeek();if(!payD[w]||!payD[w][i])return;payD[w][i].days[di]=parseFloat(v)||0;await savPayWeek(w,payD[w]);rPay()}
+async function updPRF(i,f,v){const w=getCurrentPRWeek();if(!payD[w]||!payD[w][i])return;payD[w][i][f]=v;await savPayWeek(w,payD[w]);rPay()}
+async function rmPR(i){const w=getCurrentPRWeek();if(!payD[w])return;payD[w].splice(i,1);await savPayWeek(w,payD[w]);rPay()}
 
 // ===================== CSV HELPER =====================
 function dlCSV(name,headers,rows){
@@ -863,7 +904,10 @@ if($('lightbox').classList.contains('open')){if(e.key==='ArrowRight')navLB(1);if
 
 // ===================== INIT =====================
 initInvFilters();
-rDash();
+(async()=>{
+try{await loadAll();rDash();toast('Connected to database','info')}
+catch(e){console.error(e);toast('Failed to connect — using offline mode','error')}
+})();
 </script>
 </body>
 </html>

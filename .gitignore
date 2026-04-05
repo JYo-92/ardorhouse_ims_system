@@ -1,0 +1,9 @@
+.env
+.env.local
+.vercel
+node_modules
+supabase/.temp
+schema.sql
+storage.sql
+
+.vercel
