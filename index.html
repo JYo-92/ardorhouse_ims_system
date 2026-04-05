@@ -323,7 +323,7 @@ tbody tr:hover{background:#f9fafb}
 </div></div>
 </div>
 </div>
-<div class="mf"><button class="btn btn-o" onclick="closeProjModal()">Cancel</button><button class="btn btn-p" onclick="saveProj()">Save Project</button></div>
+<div class="mf"><button class="btn btn-o" onclick="closeProjModal()">Cancel</button><button class="btn btn-p" id="proj-save-btn" onclick="saveProj().catch(e=>{console.error(e);toast('Save failed: '+e.message,'error')})">Save Project</button></div>
 </div>
 </div>
 
@@ -712,40 +712,41 @@ $('proj-mo').classList.add('open');
 function closeProjModal(){$('proj-mo').classList.remove('open');editProjId=null}
 
 async function saveProj(){
-const btn=document.querySelector('#proj-mo .mf .btn-p');
-try{
-const name=$('pi-name').value.trim(),addr=$('pi-addr').value.trim(),bu=$('pi-bu').value;
+var btn=$('proj-save-btn');
+var name=$('pi-name').value.trim();
+var bu=$('pi-bu').value;
 if(!name){toast('Project name is required','error');return}
 if(!bu){toast('Business unit is required','error');return}
-btn.disabled=true;btn.textContent='Saving...';
-// Check auth session before saving
-const{data:sess}=await sb.auth.getSession();
-console.log('Auth session:',sess);
-if(!sess||!sess.session){toast('Not logged in — please refresh and sign in again','error');btn.disabled=false;btn.textContent='Save Project';return}
-const start=$('pi-start').value,end=$('pi-end').value;
-const status=$('pi-status').value;
-let p;
-const isNew=!editProjId;
+if(btn){btn.disabled=true;btn.textContent='Saving...';}
+var addr=$('pi-addr').value.trim();
+var start=$('pi-start').value;
+var end=$('pi-end').value;
+var status=$('pi-status').value;
+var isNew=!editProjId;
+var p;
 if(editProjId){
-  p=proj.find(x=>x.id===editProjId);if(!p)return;
+  p=proj.find(function(x){return x.id===editProjId});
+  if(!p){if(btn){btn.disabled=false;btn.textContent='Save Project';}return}
   p.name=name;p.address=addr;p.bu=bu;p.status=status;p.agent=$('pi-agent').value.trim();p.start=start;p.end=end;p.notes=$('pi-notes').value.trim();
   p.invoice=parseFloat($('pi-inv').value)||0;p.deposit=parseFloat($('pi-dep').value)||0;
 }else{
-  p={id:uid(),name,address:addr,bu,status,agent:$('pi-agent').value.trim(),start,end,notes:$('pi-notes').value.trim(),
+  p={id:uid(),name:name,address:addr,bu:bu,status:status,agent:$('pi-agent').value.trim(),start:start,end:end,notes:$('pi-notes').value.trim(),
     invoice:parseFloat($('pi-inv').value)||0,deposit:parseFloat($('pi-dep').value)||0,
     rooms:{},labor:[],logRuns:0,logMiles:0,logCPM:0.67,storPulls:0,storCPP:0,miscLines:[]};
   proj.push(p);
 }
-await savProjItem(p);
-btn.disabled=false;btn.textContent='Save Project';
-closeProjModal();
-toast(isNew?'Project created — opening builder...':'Project updated');
-openPD(p.id);
+try{
+  await savProjItem(p);
 }catch(e){
-console.error('saveProj error:',e);
-toast('Error saving project: '+e.message,'error');
-if(btn){btn.disabled=false;btn.textContent='Save Project'}
+  console.error('Supabase save error:',e);
+  toast('Database error: '+e.message,'error');
+  if(btn){btn.disabled=false;btn.textContent='Save Project';}
+  return;
 }
+if(btn){btn.disabled=false;btn.textContent='Save Project';}
+closeProjModal();
+toast(isNew?'Project created':'Project updated');
+openPD(p.id);
 }
 
 async function delProj(id){if(!confirm('Delete this project and return all inventory?'))return;
