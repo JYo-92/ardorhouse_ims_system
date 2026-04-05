@@ -703,7 +703,7 @@ function autoEnd(){const s=$('pi-start').value;if(s&&!$('pi-end').value){const d
 function openProjModal(id){
 editProjId=id||null;$('proj-mt').textContent=id?'Edit Project':'New Project';
 if(id){const p=proj.find(x=>x.id===id);if(!p)return;$('pi-name').value=p.name;$('pi-addr').value=p.address||'';$('pi-bu').value=p.bu;$('pi-status').value=p.status||'Scheduled';$('pi-agent').value=p.agent||'';$('pi-start').value=p.start||'';$('pi-end').value=p.end||'';$('pi-notes').value=p.notes||'';$('pi-inv').value=p.invoice||0;$('pi-dep').value=p.deposit||0}
-else{$('proj-form').reset();$('pi-status').value='Scheduled';$('pi-inv').value=0;$('pi-dep').value=0}
+else{$('pi-name').value='';$('pi-addr').value='';$('pi-bu').value='';$('pi-agent').value='';$('pi-start').value='';$('pi-end').value='';$('pi-notes').value='';$('pi-status').value='Scheduled';$('pi-inv').value=0;$('pi-dep').value=0}
 $('proj-mo').classList.add('open');
 }
 function closeProjModal(){$('proj-mo').classList.remove('open');editProjId=null}
