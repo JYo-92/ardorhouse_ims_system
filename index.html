@@ -131,9 +131,36 @@ tbody tr:hover{background:#f9fafb}
 .fg{grid-template-columns:1fr}.dg{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr 1fr}
 }
 @media(max-width:480px){.cards{grid-template-columns:1fr}.dg{grid-template-columns:1fr}}
+/* LOGIN */
+.login-overlay{position:fixed;inset:0;z-index:500;background:#1a1a2e;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-overlay.hidden{display:none}
+.login-box{width:100%;max-width:380px;text-align:center}
+.login-box .l-brand{font-size:1.8rem;font-weight:700;color:#e2b87e;letter-spacing:.5px;margin-bottom:4px}
+.login-box .l-tag{font-size:.7rem;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:2px;margin-bottom:36px}
+.login-box input{width:100%;padding:12px 16px;border:1px solid rgba(255,255,255,.15);border-radius:var(--radius);background:rgba(255,255,255,.07);color:#fff;font-size:.9rem;font-family:inherit;margin-bottom:12px;transition:.2s}
+.login-box input::placeholder{color:rgba(255,255,255,.35)}
+.login-box input:focus{outline:none;border-color:#e2b87e;background:rgba(255,255,255,.1)}
+.login-btn{width:100%;padding:12px;border:none;border-radius:var(--radius);background:#e2b87e;color:#1a1a2e;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;margin-top:4px}
+.login-btn:hover{background:#d4a56a}
+.login-btn:disabled{opacity:.5;cursor:not-allowed}
+.login-err{color:#f87171;font-size:.8rem;margin-top:12px;min-height:20px}
+.login-footer{margin-top:32px;font-size:.65rem;color:rgba(255,255,255,.2)}
 </style>
 </head>
 <body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="login-overlay">
+<div class="login-box">
+<div class="l-brand">Ardor House</div>
+<div class="l-tag">Staging Operations</div>
+<input type="email" id="login-email" placeholder="Email" autocomplete="email">
+<input type="password" id="login-pw" placeholder="Password" autocomplete="current-password">
+<button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+<div class="login-err" id="login-err"></div>
+<div class="login-footer">&copy; 2026 Ardor House &middot; Internal Use Only</div>
+</div>
+</div>
 
 <button class="menu-btn" onclick="document.querySelector('.sb').classList.toggle('open')">&#9776;</button>
 
@@ -148,7 +175,7 @@ tbody tr:hover{background:#f9fafb}
 <div class="sep"></div>
 <a href="#" data-v="pay" onclick="go('pay')">&#9632; Weekly Payroll</a>
 </nav>
-<div class="foot">&copy; 2026 Ardor House</div>
+<div class="foot"><a href="#" onclick="doLogout()" style="color:rgba(255,255,255,.5);text-decoration:none;font-size:.75rem;display:block;margin-bottom:8px">&#9654; Sign Out</a>&copy; 2026 Ardor House</div>
 </aside>
 
 <div class="toast-c" id="toasts"></div>
@@ -384,6 +411,30 @@ function rmPendingImg(i){pendingImgs.splice(i,1);renderImgPreviews()}
 function openLB(imgs,idx){lbImgs=imgs;lbIdx=idx;$('lb-img').src=lbImgs[lbIdx];$('lightbox').classList.add('open')}
 function closeLB(e){if(e&&e.target!==$('lightbox')&&e.target!==$('lb-img')&&!e.target.classList.contains('lb-close'))return;$('lightbox').classList.remove('open')}
 function navLB(dir,e){if(e)e.stopPropagation();lbIdx=(lbIdx+dir+lbImgs.length)%lbImgs.length;$('lb-img').src=lbImgs[lbIdx]}
+
+// ===================== AUTH =====================
+function showLogin(){$('login-overlay').classList.remove('hidden');$('login-err').textContent=''}
+function hideLogin(){$('login-overlay').classList.add('hidden')}
+
+async function doLogin(){
+const email=$('login-email').value.trim();const pw=$('login-pw').value;
+$('login-err').textContent='';
+if(!email||!pw){$('login-err').textContent='Please enter email and password.';return}
+if(!email.endsWith('@ardorhouse.com')){$('login-err').textContent='You must use an Ardor House email to access this platform.';return}
+$('login-btn').disabled=true;$('login-btn').textContent='Signing in...';
+const{error}=await sb.auth.signInWithPassword({email,password:pw});
+$('login-btn').disabled=false;$('login-btn').textContent='Sign In';
+if(error){$('login-err').textContent=error.message;return}
+}
+
+async function doLogout(){
+await sb.auth.signOut();
+inv=[];proj=[];payD={};
+showLogin();
+}
+
+// Allow Enter key to submit login
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('login-overlay').classList.contains('hidden'))doLogin()});
 
 // ===================== TOAST =====================
 function toast(msg,type='success'){const t=document.createElement('div');t.className='toast '+type;t.textContent=msg;$('toasts').appendChild(t);setTimeout(()=>t.remove(),3000)}
@@ -904,10 +955,16 @@ if($('lightbox').classList.contains('open')){if(e.key==='ArrowRight')navLB(1);if
 
 // ===================== INIT =====================
 initInvFilters();
-(async()=>{
-try{await loadAll();rDash();toast('Connected to database','info')}
-catch(e){console.error(e);toast('Failed to connect — using offline mode','error')}
-})();
+let _authReady=false;
+sb.auth.onAuthStateChange(async(event,session)=>{
+if(session&&session.user){
+  hideLogin();
+  if(!_authReady){_authReady=true;try{await loadAll();rDash()}catch(e){console.error(e);toast('Failed to load data','error')}}
+}else{
+  _authReady=false;
+  showLogin();
+}
+});
 </script>
 </body>
 </html>
