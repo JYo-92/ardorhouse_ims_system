@@ -709,11 +709,14 @@ $('proj-mo').classList.add('open');
 function closeProjModal(){$('proj-mo').classList.remove('open');editProjId=null}
 
 async function saveProj(){
+try{
 const name=$('pi-name').value.trim(),addr=$('pi-addr').value.trim(),bu=$('pi-bu').value;
-if(!name||!bu){toast('Name and business unit required','error');return}
+if(!name){toast('Project name is required','error');return}
+if(!bu){toast('Business unit is required','error');return}
 const start=$('pi-start').value,end=$('pi-end').value;
-let p;
 const status=$('pi-status').value;
+let p;
+const isNew=!editProjId;
 if(editProjId){
   p=proj.find(x=>x.id===editProjId);if(!p)return;
   p.name=name;p.address=addr;p.bu=bu;p.status=status;p.agent=$('pi-agent').value.trim();p.start=start;p.end=end;p.notes=$('pi-notes').value.trim();
@@ -724,7 +727,12 @@ if(editProjId){
     rooms:{},labor:[],logRuns:0,logMiles:0,logCPM:0.67,storPulls:0,storCPP:0,miscLines:[]};
   proj.push(p);
 }
-await savProjItem(p);closeProjModal();rProj();toast(editProjId?'Project updated':'Project created');
+await savProjItem(p);
+closeProjModal();
+toast(isNew?'Project created — opening builder...':'Project updated');
+// After save, go directly to the project builder page
+openPD(p.id);
+}catch(e){console.error('saveProj error:',e);toast('Error saving project: '+e.message,'error')}
 }
 
 async function delProj(id){if(!confirm('Delete this project and return all inventory?'))return;
@@ -777,40 +785,46 @@ const miscHTML=(p.miscLines||[]).map((m,i)=>`<tr>
 <td><button class="btn btn-d btn-s" onclick="rmMisc('${p.id}',${i})">&#10005;</button></td></tr>`).join('');
 
 $('v-pd').innerHTML=`
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
-<button class="btn btn-o btn-s" onclick="go('proj')">&larr; Back</button>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+<button class="btn btn-o btn-s" onclick="go('dash')">&larr; Dashboard</button>
+<button class="btn btn-o btn-s" onclick="go('proj')">&larr; All Projects</button>
 <h1 style="font-size:1.3rem">${esc(p.name)}</h1>
 ${projStatusBadge(p.status)}
 </div>
+
+<!-- PROJECT INFO HEADER -->
 <div class="dg">
 <div class="di"><div class="dl">Address</div><div class="dv">${esc(p.address||'—')}</div></div>
 <div class="di"><div class="dl">Business Unit</div><div class="dv">${esc(p.bu)}</div></div>
 <div class="di"><div class="dl">Agent</div><div class="dv">${esc(p.agent||'—')}</div></div>
 <div class="di"><div class="dl">Start</div><div class="dv">${p.start||'—'}</div></div>
 <div class="di"><div class="dl">End</div><div class="dv">${p.end||'—'}</div></div>
-<div class="di"><div class="dl">Balance Due</div><div class="dv">${fm(c.balance)}</div></div>
+<div class="di"><div class="dl">Status</div><div class="dv">
+<select style="padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem;font-weight:600" onchange="quickStatus('${p.id}',this.value)">
+<option${p.status==='Scheduled'?' selected':''}>Scheduled</option>
+<option${p.status==='Active'?' selected':''}>Active</option>
+<option${p.status==='De-stage Scheduled'?' selected':''}>De-stage Scheduled</option>
+<option${p.status==='Completed'?' selected':''}>Completed</option>
+</select></div></div>
 </div>
 
-<div class="ptabs">
-<div class="ptab ${pdTab==='rooms'?'active':''}" onclick="pdTab='rooms';renderPD()">Rooms & Furniture</div>
-<div class="ptab ${pdTab==='costs'?'active':''}" onclick="pdTab='costs';renderPD()">Costs</div>
-<div class="ptab ${pdTab==='pnl'?'active':''}" onclick="pdTab='pnl';renderPD()">P&L Summary</div>
-</div>
-
-${pdTab==='rooms'?`
-<div class="tb"><h2>Rooms</h2><div class="acts">
+<!-- SECTION 1: ROOMS & FURNITURE -->
+<div class="fs" style="margin-top:20px"><h4>Rooms & Furniture</h4>
+<div class="tb" style="margin-bottom:8px"><div class="acts">
 <select id="pd-add-room"><option value="">Add room...</option>${addRoomOpts}</select>
-<button class="btn btn-p btn-s" onclick="addRoom('${p.id}')">Add</button>
+<button class="btn btn-p btn-s" onclick="addRoom('${p.id}')">Add Room</button>
 </div></div>
-${roomsHTML||'<div class="empty"><p>No rooms added yet.</p></div>'}
-`:''}
+${roomsHTML||'<div style="color:var(--muted);font-size:.85rem;padding:12px 0">No rooms added yet. Select a room above and click Add Room.</div>'}
+</div>
 
-${pdTab==='costs'?`
+<!-- SECTION 2: LABOR -->
 <div class="fs"><h4>Labor</h4>
 <div class="tw"><table><thead><tr><th>Role</th><th>Workers</th><th>Hours</th><th>Rate</th><th class="tr">Cost</th><th></th></tr></thead><tbody>${laborHTML}</tbody></table></div>
 <button class="btn btn-o btn-s" style="margin-top:8px" onclick="addLabor('${p.id}')">+ Add Labor</button>
 <div style="margin-top:6px;font-size:.82rem">Total Labor: <strong>${fm(c.totalLabor)}</strong></div>
 </div>
+
+<!-- SECTION 3: LOGISTICS -->
 <div class="fs"><h4>Logistics</h4>
 <div class="fg" style="max-width:500px">
 <div class="fi"><label>Truck Runs</label><input type="number" min="0" value="${p.logRuns||0}" onchange="updProjF('${p.id}','logRuns',+this.value)"></div>
@@ -819,6 +833,8 @@ ${pdTab==='costs'?`
 </div>
 <div style="margin-top:6px;font-size:.82rem">Total Logistics: <strong>${fm(c.totalLog)}</strong></div>
 </div>
+
+<!-- SECTION 4: STORAGE -->
 <div class="fs"><h4>Storage / Warehouse</h4>
 <div class="fg" style="max-width:400px">
 <div class="fi"><label>Number of Pulls</label><input type="number" min="0" value="${p.storPulls||0}" onchange="updProjF('${p.id}','storPulls',+this.value)"></div>
@@ -826,14 +842,16 @@ ${pdTab==='costs'?`
 </div>
 <div style="margin-top:6px;font-size:.82rem">Total Storage: <strong>${fm(c.totalStor)}</strong></div>
 </div>
+
+<!-- SECTION 5: MISCELLANEOUS -->
 <div class="fs"><h4>Miscellaneous</h4>
 <div class="tw"><table><thead><tr><th>Description</th><th>Amount</th><th></th></tr></thead><tbody>${miscHTML}</tbody></table></div>
 <button class="btn btn-o btn-s" style="margin-top:8px" onclick="addMisc('${p.id}')">+ Add Line</button>
 <div style="margin-top:6px;font-size:.82rem">Total Misc: <strong>${fm(c.totalMisc)}</strong></div>
 </div>
-`:''}
 
-${pdTab==='pnl'?`
+<!-- SECTION 6: P&L SUMMARY -->
+<div class="fs"><h4>P&L Summary</h4>
 <div class="cp">
 <div class="cr"><span>Invoice</span><span class="v">${fm(c.invoice)}</span></div>
 <div class="cr"><span>Deposit</span><span class="v">${fm(p.deposit||0)}</span></div>
@@ -851,9 +869,10 @@ ${pdTab==='pnl'?`
 <div class="cr"><span>Pieces Assigned</span><span class="v">${c.pieces}</span></div>
 <div class="cr"><span>Cost Per Piece Moved</span><span class="v">${fm(c.cpp)}</span></div>
 </div>
-`:''}
+</div>
 
-<div style="display:flex;gap:8px;margin-top:20px">
+<!-- ACTIONS -->
+<div style="display:flex;gap:8px;margin-top:20px;padding-bottom:40px">
 <button class="btn btn-o" onclick="openProjModal('${p.id}')">Edit Project Info</button>
 ${(p.status==='De-stage Scheduled'||p.status==='Completed')?`<button class="btn btn-g" onclick="returnAll('${p.id}')">Return All Inventory</button>`:''}
 <button class="btn btn-d" onclick="delProj('${p.id}');go('proj')">Delete Project</button>
