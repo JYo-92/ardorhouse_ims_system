@@ -718,6 +718,10 @@ const name=$('pi-name').value.trim(),addr=$('pi-addr').value.trim(),bu=$('pi-bu'
 if(!name){toast('Project name is required','error');return}
 if(!bu){toast('Business unit is required','error');return}
 btn.disabled=true;btn.textContent='Saving...';
+// Check auth session before saving
+const{data:sess}=await sb.auth.getSession();
+console.log('Auth session:',sess);
+if(!sess||!sess.session){toast('Not logged in — please refresh and sign in again','error');btn.disabled=false;btn.textContent='Save Project';return}
 const start=$('pi-start').value,end=$('pi-end').value;
 const status=$('pi-status').value;
 let p;
