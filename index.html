@@ -304,14 +304,14 @@ tbody tr:hover{background:#f9fafb}
 <div class="modal">
 <div class="mh"><h3 id="proj-mt">New Project</h3><button class="mx" onclick="closeProjModal()">&times;</button></div>
 <div class="mb">
-<form id="proj-form" onsubmit="return false">
+<div id="proj-form">
 <div class="fs"><h4>Project Info</h4>
 <div class="fg">
-<div class="fi"><label>Project Name *</label><input id="pi-name" required></div>
-<div class="fi"><label>Property Address *</label><input id="pi-addr" required></div>
-<div class="fi"><label>Business Unit *</label><select id="pi-bu" required><option value="">Select...</option><option>Staging</option><option>Interior Design</option><option>Vacation Rental Design</option><option>Furniture Rental</option></select></div>
+<div class="fi"><label>Project Name *</label><input id="pi-name"></div>
+<div class="fi"><label>Property Address</label><input id="pi-addr"></div>
+<div class="fi"><label>Business Unit *</label><select id="pi-bu"><option value="">Select...</option><option>Staging</option><option>Interior Design</option><option>Vacation Rental Design</option><option>Furniture Rental</option></select></div>
 <div class="fi"><label>Agent Contact</label><input id="pi-agent"></div>
-<div class="fi"><label>Status *</label><select id="pi-status" required><option>Scheduled</option><option>Active</option><option>De-stage Scheduled</option><option>Completed</option></select></div>
+<div class="fi"><label>Status</label><select id="pi-status"><option>Scheduled</option><option>Active</option><option>De-stage Scheduled</option><option>Completed</option></select></div>
 <div class="fi"><label>Start Date</label><input type="date" id="pi-start" onchange="autoEnd()"></div>
 <div class="fi"><label>End Date</label><input type="date" id="pi-end"></div>
 <div class="fi full"><label>Notes</label><textarea id="pi-notes" rows="2"></textarea></div>
@@ -321,7 +321,7 @@ tbody tr:hover{background:#f9fafb}
 <div class="fi"><label>Invoice Amount ($)</label><input type="number" id="pi-inv" min="0" step=".01" value="0"></div>
 <div class="fi"><label>Deposit Collected ($)</label><input type="number" id="pi-dep" min="0" step=".01" value="0"></div>
 </div></div>
-</form>
+</div>
 </div>
 <div class="mf"><button class="btn btn-o" onclick="closeProjModal()">Cancel</button><button class="btn btn-p" onclick="saveProj()">Save Project</button></div>
 </div>
