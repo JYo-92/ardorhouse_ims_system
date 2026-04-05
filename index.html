@@ -384,8 +384,10 @@ async function delInvItem(id){await sb.from('inventory').delete().eq('id',id)}
 
 async function savProjItem(p){
 const row={id:p.id,name:p.name,address:p.address||null,bu:p.bu,agent:p.agent||null,start_date:p.start||null,end_date:p.end||null,notes:p.notes||null,status:p.status||'Scheduled',invoice:p.invoice,deposit:p.deposit,rooms:p.rooms||{},labor:p.labor||[],log_runs:p.logRuns||0,log_miles:p.logMiles||0,log_cpm:p.logCPM||0.67,stor_pulls:p.storPulls||0,stor_cpp:p.storCPP||0,misc_lines:p.miscLines||[],updated_at:new Date().toISOString()};
-const{error}=await sb.from('projects').upsert(row,{onConflict:'id'});
-if(error)throw new Error(error.message);
+console.log('savProjItem: upserting row',row.id);
+const resp=await sb.from('projects').upsert(row,{onConflict:'id'});
+console.log('savProjItem: response',resp);
+if(resp.error)throw new Error(resp.error.message);
 }
 async function delProjItem(id){await sb.from('projects').delete().eq('id',id)}
 
