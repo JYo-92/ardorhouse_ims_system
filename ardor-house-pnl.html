@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ardor House — Job P&L Tracker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --sidebar-bg: #1a1a2e;
+  --sidebar-accent: #e2b87e;
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --text: #23272f;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --green: #16a34a;
+  --yellow: #ca8a04;
+  --red: #dc2626;
+  --green-bg: #dcfce7;
+  --yellow-bg: #fef9c3;
+  --red-bg: #fee2e2;
+  --accent: #7c5cfc;
+  --accent-hover: #6345e0;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+}
+html { font-size: 15px; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 240px; background: var(--sidebar-bg); color: #fff; padding: 28px 20px;
+  display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
+  transition: transform .3s;
+}
+.sidebar .brand { font-size: 1.35rem; font-weight: 700; color: var(--sidebar-accent); letter-spacing: .5px; margin-bottom: 6px; }
+.sidebar .tagline { font-size: .75rem; color: rgba(255,255,255,.45); margin-bottom: 32px; text-transform: uppercase; letter-spacing: 1.5px; }
+.sidebar nav a {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius);
+  color: rgba(255,255,255,.7); text-decoration: none; font-size: .9rem; margin-bottom: 4px; transition: background .2s, color .2s;
+}
+.sidebar nav a:hover, .sidebar nav a.active { background: rgba(255,255,255,.1); color: #fff; }
+.sidebar nav a.active { background: rgba(226,184,126,.15); color: var(--sidebar-accent); }
+.sidebar .sidebar-footer { margin-top: auto; font-size: .7rem; color: rgba(255,255,255,.3); }
+.menu-toggle { display: none; position: fixed; top: 14px; left: 14px; z-index: 200; background: var(--sidebar-bg); color: #fff; border: none; border-radius: var(--radius); width: 40px; height: 40px; font-size: 1.3rem; cursor: pointer; }
+
+/* MAIN */
+.main { margin-left: 240px; flex: 1; padding: 32px 36px; min-height: 100vh; }
+
+/* SUMMARY CARDS */
+.summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.summary-card {
+  background: var(--card); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow);
+}
+.summary-card .label { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; }
+.summary-card .value { font-size: 1.55rem; font-weight: 700; }
+.summary-card .value.green { color: var(--green); }
+.summary-card .value.yellow { color: var(--yellow); }
+.summary-card .value.red { color: var(--red); }
+
+/* TOOLBAR */
+.toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.toolbar h2 { font-size: 1.15rem; font-weight: 600; }
+.toolbar .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border: none; border-radius: var(--radius);
+  font-size: .85rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-outline { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.btn-outline:hover { background: var(--bg); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-sm { padding: 5px 12px; font-size: .78rem; }
+
+/* TABLE */
+.table-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+thead th { background: var(--bg); padding: 12px 14px; text-align: left; font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); white-space: nowrap; border-bottom: 1px solid var(--border); }
+tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody tr:hover { background: #f9fafb; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: .72rem; font-weight: 600; }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+.text-right { text-align: right; }
+.empty-state { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+.empty-state p { margin-top: 8px; font-size: .9rem; }
+
+/* MODAL */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 300;
+  justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--card); border-radius: 12px; width: 100%; max-width: 780px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2); animation: slideUp .25s ease;
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--border); }
+.modal-header h3 { font-size: 1.1rem; }
+.modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-muted); }
+.modal-body { padding: 24px 28px; max-height: 70vh; overflow-y: auto; }
+.modal-footer { padding: 16px 28px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+/* FORM */
+.form-section { margin-bottom: 22px; }
+.form-section h4 { font-size: .85rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); display: inline-block; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-group label { font-size: .78rem; font-weight: 600; color: var(--text-muted); }
+.form-group input, .form-group select, .form-group textarea {
+  padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: .88rem;
+  font-family: inherit; transition: border-color .2s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,252,.12); }
+.form-group textarea { resize: vertical; min-height: 60px; }
+
+/* LABOR ROWS */
+.labor-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .82rem; }
+.labor-table th { text-align: left; padding: 6px 8px; font-size: .72rem; color: var(--text-muted); text-transform: uppercase; }
+.labor-table td { padding: 4px 8px; vertical-align: middle; }
+.labor-table input, .labor-table select { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: .82rem; font-family: inherit; }
+.labor-table .role-label { font-weight: 600; font-size: .82rem; white-space: nowrap; }
+.labor-row-actions { display: flex; gap: 4px; }
+.btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; width: 30px; height: 30px; cursor: pointer; font-size: .9rem; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.btn-icon:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+.rate-group { display: flex; gap: 4px; align-items: center; }
+.rate-group select { width: auto; min-width: 80px; }
+.rate-group input { width: 75px; }
+
+/* CALC PREVIEW */
+.calc-preview { background: #f8f7ff; border: 1px solid #e0dcfc; border-radius: var(--radius); padding: 18px 20px; margin-top: 8px; }
+.calc-preview .calc-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: .85rem; }
+.calc-preview .calc-row.total { font-weight: 700; border-top: 2px solid var(--accent); margin-top: 8px; padding-top: 10px; font-size: .95rem; }
+.calc-preview .calc-row .val { font-weight: 600; }
+.calc-preview .calc-row .val.green { color: var(--green); }
+.calc-preview .calc-row .val.red { color: var(--red); }
+
+/* FILTER */
+.filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-bar select, .filter-bar input { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: .85rem; background: var(--card); }
+
+/* JOB DETAIL */
+.detail-section { margin-bottom: 20px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.detail-item .dl { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+.detail-item .dv { font-size: .95rem; font-weight: 600; margin-top: 2px; }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .menu-toggle { display: block; }
+  .main { margin-left: 0; padding: 20px 16px; padding-top: 60px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr 1fr; }
+  .summary-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .summary-row { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">&#9776;</button>
+
+<aside class="sidebar">
+  <div class="brand">Ardor House</div>
+  <div class="tagline">Job P&L Tracker</div>
+  <nav>
+    <a href="#" class="active" data-view="dashboard" onclick="showView('dashboard')">
+      <span>&#9632;</span> Dashboard
+    </a>
+    <a href="#" data-view="jobs" onclick="showView('jobs')">
+      <span>&#9632;</span> All Jobs
+    </a>
+    <a href="#" data-view="payroll" onclick="showView('payroll')">
+      <span>&#9632;</span> Weekly Payroll
+    </a>
+  </nav>
+  <div class="sidebar-footer">&copy; 2026 Ardor House</div>
+</aside>
+
+<main class="main">
+  <!-- DASHBOARD VIEW -->
+  <div id="view-dashboard">
+    <h1 style="font-size:1.5rem; margin-bottom:24px;">Dashboard</h1>
+    <div class="summary-row" id="summary-cards"></div>
+    <div class="toolbar">
+      <h2>Recent Jobs</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="openJobModal()">+ New Job</button>
+        <button class="btn btn-outline" onclick="exportCSV()">&#8681; Export CSV</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <select id="filter-bu" onchange="renderTable()">
+        <option value="">All Business Units</option>
+        <option>Staging</option>
+        <option>Interior Design</option>
+        <option>Vacation Rental Design</option>
+        <option>Furniture Rental</option>
+      </select>
+      <input type="text" id="filter-search" placeholder="Search client or address..." oninput="renderTable()">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Business Unit</th>
+            <th class="text-right">Invoice</th>
+            <th class="text-right">Total Cost</th>
+            <th class="text-right">Gross Profit</th>
+            <th class="text-right">Margin</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="jobs-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="empty-state" style="display:none;">
+        <div style="font-size:2.5rem;">&#128203;</div>
+        <p>No jobs yet. Click <strong>+ New Job</strong> to get started.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOB DETAIL VIEW -->
+  <div id="view-detail" style="display:none;"></div>
+
+  <!-- WEEKLY PAYROLL VIEW -->
+  <div id="view-payroll" style="display:none;">
+    <h1 style="font-size:1.5rem; margin-bottom:24px;">Weekly Payroll</h1>
+
+    <div class="form-grid" style="max-width:360px; margin-bottom:20px;">
+      <div class="form-group">
+        <label>Week Starting</label>
+        <input type="date" id="pr-week" onchange="renderPayroll()">
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <h2>Laborers</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="addPayrollRow()">+ Add Laborer</button>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th style="width:70px">Mon</th>
+            <th style="width:70px">Tue</th>
+            <th style="width:70px">Wed</th>
+            <th style="width:70px">Thu</th>
+            <th style="width:70px">Fri</th>
+            <th style="width:70px">Sat</th>
+            <th style="width:70px">Sun</th>
+            <th style="width:90px">Rate</th>
+            <th class="text-right" style="width:90px">Total Hrs</th>
+            <th class="text-right" style="width:100px">Total Pay</th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="payroll-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="payroll-empty" style="display:none;">
+        <div style="font-size:2.5rem;">&#128176;</div>
+        <p>No laborers added. Click <strong>+ Add Laborer</strong> to start.</p>
+      </div>
+    </div>
+
+    <!-- WEEKLY SUMMARY -->
+    <div class="summary-row" id="payroll-summary"></div>
+  </div>
+</main>
+
+<!-- JOB MODAL -->
+<div class="modal-overlay" id="job-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">New Job</h3>
+      <button class="modal-close" onclick="closeJobModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="job-form" onsubmit="return false;">
+
+        <!-- REVENUE -->
+        <div class="form-section">
+          <h4>Revenue</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>Client Name *</label><input id="f-client" required></div>
+            <div class="form-group"><label>Job Address *</label><input id="f-address" required></div>
+            <div class="form-group"><label>Business Unit *</label>
+              <select id="f-bu" required>
+                <option value="">Select...</option>
+                <option>Staging</option>
+                <option>Interior Design</option>
+                <option>Vacation Rental Design</option>
+                <option>Furniture Rental</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Job Date</label><input type="date" id="f-date"></div>
+            <div class="form-group"><label>Invoice Amount ($) *</label><input type="number" id="f-invoice" step=".01" min="0" required oninput="calcPreview()"></div>
+            <div class="form-group"><label>Deposit Collected ($)</label><input type="number" id="f-deposit" step=".01" min="0" value="0" oninput="calcPreview()"></div>
+          </div>
+        </div>
+
+        <!-- LABOR -->
+        <div class="form-section">
+          <h4>Labor</h4>
+          <table class="labor-table">
+            <thead><tr><th>Name (optional)</th><th>Role</th><th style="width:80px">Hours</th><th style="width:140px">Rate</th><th style="width:80px" class="text-right">Subtotal</th><th style="width:36px"></th></tr></thead>
+            <tbody id="labor-rows"></tbody>
+          </table>
+          <button type="button" class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="addLaborRow()">+ Add Worker</button>
+          <div style="margin-top:8px;font-size:.78rem;color:var(--text-muted);">
+            Total Labor: <strong id="f-labor-total">$0.00</strong>
+          </div>
+        </div>
+
+        <!-- GAS -->
+        <div class="form-section">
+          <h4>Gas</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>Gas Spent ($)</label><input type="number" id="f-gas" min="0" step=".01" value="0" oninput="calcPreview()"></div>
+          </div>
+        </div>
+
+        <!-- FOOD -->
+        <div class="form-section">
+          <h4>Food</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>Food Cost ($)</label><input type="number" id="f-food" min="0" step=".01" value="0" oninput="calcPreview()"></div>
+          </div>
+        </div>
+
+        <!-- MISC -->
+        <div class="form-section">
+          <h4>Miscellaneous</h4>
+          <div class="form-grid">
+            <div class="form-group"><label>Misc Cost ($)</label><input type="number" id="f-misc" min="0" step=".01" value="0" oninput="calcPreview()"></div>
+            <div class="form-group full"><label>Misc Notes</label><textarea id="f-misc-notes" rows="2"></textarea></div>
+          </div>
+        </div>
+
+        <!-- LIVE CALC PREVIEW -->
+        <div class="form-section">
+          <h4>Live P&L Preview</h4>
+          <div class="calc-preview" id="calc-preview">
+            <div class="calc-row"><span>Total Labor</span><span class="val" id="cp-labor">$0.00</span></div>
+            <div class="calc-row"><span>Gas</span><span class="val" id="cp-gas">$0.00</span></div>
+            <div class="calc-row"><span>Food</span><span class="val" id="cp-food">$0.00</span></div>
+            <div class="calc-row"><span>Misc Costs</span><span class="val" id="cp-misc">$0.00</span></div>
+            <div class="calc-row total"><span>Total Job Cost</span><span class="val" id="cp-total-cost">$0.00</span></div>
+            <div class="calc-row total"><span>Gross Profit</span><span class="val" id="cp-profit">$0.00</span></div>
+            <div class="calc-row"><span>Gross Margin</span><span class="val" id="cp-margin">0.0%</span></div>
+            <div class="calc-row"><span>Labor % of Revenue</span><span class="val" id="cp-labor-pct">0.0%</span></div>
+            <div class="calc-row"><span>Balance Due</span><span class="val" id="cp-balance">$0.00</span></div>
+          </div>
+        </div>
+
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeJobModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== DATA ==========
+const STORAGE_KEY = 'ardorhouse_jobs';
+let jobs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let editingId = null;
+let laborRowCounter = 0;
+
+const ROLES = ['Lead Stager', 'Stager', 'Driver/Installer'];
+const RATE_PRESETS = [
+  { label: '$20/hr', value: 20 },
+  { label: '$30/hr', value: 30 },
+  { label: 'Custom', value: 'custom' },
+];
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs)); }
+function fmtMoney(n) { return '$' + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function pct(n) { return (n||0).toFixed(1) + '%'; }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function nv(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+// ========== VIEW SWITCHING ==========
+function showView(view) {
+  document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.toggle('active', a.dataset.view === view));
+  document.getElementById('view-dashboard').style.display = view === 'dashboard' ? '' : 'none';
+  document.getElementById('view-detail').style.display = view === 'detail' ? '' : 'none';
+  document.getElementById('view-payroll').style.display = view === 'payroll' ? '' : 'none';
+  document.querySelector('.sidebar').classList.remove('open');
+  if (view === 'dashboard') { renderDashboard(); }
+  if (view === 'payroll') { initPayroll(); }
+}
+
+// ========== DYNAMIC LABOR ROWS ==========
+function addLaborRow(data) {
+  const id = laborRowCounter++;
+  const tbody = document.getElementById('labor-rows');
+  const tr = document.createElement('tr');
+  tr.id = `labor-row-${id}`;
+  const d = data || { name: '', role: 'Stager', hrs: 0, ratePreset: '20', rateCustom: 20 };
+  const isCustom = !RATE_PRESETS.some(p => String(p.value) === String(d.ratePreset));
+  const preset = isCustom ? 'custom' : d.ratePreset;
+
+  const roleOpts = ROLES.map(r => `<option${r===d.role?' selected':''}>${r}</option>`).join('');
+  const presetOpts = RATE_PRESETS.map(p => `<option value="${p.value}"${String(p.value)===String(preset)?' selected':''}>${p.label}</option>`).join('');
+
+  tr.innerHTML = `
+    <td><input type="text" placeholder="e.g. Joy" value="${esc(d.name)}" data-field="name" oninput="calcPreview()"></td>
+    <td><select data-field="role" onchange="calcPreview()">${roleOpts}</select></td>
+    <td><input type="number" min="0" step=".5" value="${d.hrs}" data-field="hrs" oninput="calcPreview()"></td>
+    <td>
+      <div class="rate-group">
+        <select data-field="ratePreset" onchange="handleRateChange(this, ${id})">${presetOpts}</select>
+        <input type="number" min="0" step=".01" value="${d.rateCustom || 20}" data-field="rateCustom"
+          style="display:${preset==='custom'?'block':'none'}" oninput="calcPreview()">
+      </div>
+    </td>
+    <td class="text-right" data-field="subtotal">$0.00</td>
+    <td><button type="button" class="btn-icon" onclick="removeLaborRow(${id})" title="Remove">&times;</button></td>
+  `;
+  tbody.appendChild(tr);
+  calcPreview();
+}
+
+function removeLaborRow(id) {
+  const row = document.getElementById(`labor-row-${id}`);
+  if (row) row.remove();
+  calcPreview();
+}
+
+function handleRateChange(sel, id) {
+  const row = document.getElementById(`labor-row-${id}`);
+  const customInput = row.querySelector('[data-field="rateCustom"]');
+  if (sel.value === 'custom') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = sel.value;
+  }
+  calcPreview();
+}
+
+function getLaborRows() {
+  const rows = [];
+  document.querySelectorAll('#labor-rows tr').forEach(tr => {
+    const name = tr.querySelector('[data-field="name"]').value.trim();
+    const role = tr.querySelector('[data-field="role"]').value;
+    const hrs = parseFloat(tr.querySelector('[data-field="hrs"]').value) || 0;
+    const ratePreset = tr.querySelector('[data-field="ratePreset"]').value;
+    const rateCustom = parseFloat(tr.querySelector('[data-field="rateCustom"]').value) || 0;
+    const rate = ratePreset === 'custom' ? rateCustom : parseFloat(ratePreset);
+    const subtotal = hrs * rate;
+    rows.push({ name, role, hrs, ratePreset, rateCustom, rate, subtotal });
+  });
+  return rows;
+}
+
+// ========== CALC PREVIEW ==========
+function calcFromForm() {
+  const laborRows = getLaborRows();
+  let totalLabor = 0;
+  // update subtotal displays
+  const trs = document.querySelectorAll('#labor-rows tr');
+  laborRows.forEach((lr, i) => {
+    trs[i].querySelector('[data-field="subtotal"]').textContent = fmtMoney(lr.subtotal);
+    totalLabor += lr.subtotal;
+  });
+  document.getElementById('f-labor-total').textContent = fmtMoney(totalLabor);
+
+  const gas = nv('f-gas');
+  const food = nv('f-food');
+  const misc = nv('f-misc');
+  const totalCost = totalLabor + gas + food + misc;
+  const invoice = nv('f-invoice');
+  const deposit = nv('f-deposit');
+  const profit = invoice - totalCost;
+  const margin = invoice > 0 ? (profit / invoice) * 100 : 0;
+  const laborPct = invoice > 0 ? (totalLabor / invoice) * 100 : 0;
+  const balance = invoice - deposit;
+  return { totalLabor, gas, food, misc, totalCost, invoice, deposit, profit, margin, laborPct, balance, laborRows };
+}
+
+function calcPreview() {
+  const c = calcFromForm();
+  document.getElementById('cp-labor').textContent = fmtMoney(c.totalLabor);
+  document.getElementById('cp-gas').textContent = fmtMoney(c.gas);
+  document.getElementById('cp-food').textContent = fmtMoney(c.food);
+  document.getElementById('cp-misc').textContent = fmtMoney(c.misc);
+  document.getElementById('cp-total-cost').textContent = fmtMoney(c.totalCost);
+  const profitEl = document.getElementById('cp-profit');
+  profitEl.textContent = fmtMoney(c.profit);
+  profitEl.className = 'val ' + (c.profit >= 0 ? 'green' : 'red');
+  const marginEl = document.getElementById('cp-margin');
+  marginEl.textContent = pct(c.margin);
+  marginEl.className = 'val ' + (c.margin >= 50 ? 'green' : c.margin >= 30 ? '' : 'red');
+  document.getElementById('cp-labor-pct').textContent = pct(c.laborPct);
+  document.getElementById('cp-balance').textContent = fmtMoney(c.balance);
+}
+
+// ========== JOB MODAL ==========
+function openJobModal(id) {
+  editingId = id || null;
+  document.getElementById('modal-title').textContent = id ? 'Edit Job' : 'New Job';
+  document.getElementById('labor-rows').innerHTML = '';
+  laborRowCounter = 0;
+
+  if (id) {
+    const j = jobs.find(x => x.id === id);
+    if (!j) return;
+    document.getElementById('f-client').value = j.client;
+    document.getElementById('f-address').value = j.address;
+    document.getElementById('f-bu').value = j.bu;
+    document.getElementById('f-date').value = j.date || '';
+    document.getElementById('f-invoice').value = j.invoice;
+    document.getElementById('f-deposit').value = j.deposit;
+    // load labor rows
+    (j.laborRows || []).forEach(lr => addLaborRow(lr));
+    document.getElementById('f-gas').value = j.gas || 0;
+    document.getElementById('f-food').value = j.food || 0;
+    document.getElementById('f-misc').value = j.misc;
+    document.getElementById('f-misc-notes').value = j.miscNotes || '';
+  } else {
+    document.getElementById('job-form').reset();
+    ['f-gas','f-food','f-misc'].forEach(id => document.getElementById(id).value = 0);
+    document.getElementById('f-deposit').value = 0;
+    // add one default row (Joy as Stager at $20)
+    addLaborRow({ name: 'Joy', role: 'Stager', hrs: 0, ratePreset: '20', rateCustom: 20 });
+  }
+  calcPreview();
+  document.getElementById('job-modal').classList.add('open');
+}
+
+function closeJobModal() { document.getElementById('job-modal').classList.remove('open'); editingId = null; }
+
+function saveJob() {
+  const client = document.getElementById('f-client').value.trim();
+  const address = document.getElementById('f-address').value.trim();
+  const bu = document.getElementById('f-bu').value;
+  if (!client || !address || !bu) { alert('Please fill in client name, address, and business unit.'); return; }
+  const invoice = nv('f-invoice');
+  if (!invoice) { alert('Please enter an invoice amount.'); return; }
+
+  const c = calcFromForm();
+  const job = {
+    id: editingId || uid(),
+    client, address, bu,
+    date: document.getElementById('f-date').value,
+    invoice, deposit: nv('f-deposit'),
+    laborRows: c.laborRows,
+    gas: nv('f-gas'), food: nv('f-food'),
+    misc: nv('f-misc'), miscNotes: document.getElementById('f-misc-notes').value.trim(),
+    // calculated
+    totalLabor: c.totalLabor,
+    totalCost: c.totalCost, profit: c.profit, margin: c.margin,
+    laborPct: c.laborPct, balance: c.balance,
+  };
+
+  if (editingId) {
+    const idx = jobs.findIndex(x => x.id === editingId);
+    if (idx >= 0) jobs[idx] = job;
+  } else {
+    jobs.unshift(job);
+  }
+  save();
+  closeJobModal();
+  renderDashboard();
+}
+
+function deleteJob(id) {
+  if (!confirm('Delete this job? This cannot be undone.')) return;
+  jobs = jobs.filter(x => x.id !== id);
+  save();
+  renderDashboard();
+  showView('dashboard');
+}
+
+// ========== RENDER ==========
+function marginBadge(m) {
+  if (m >= 50) return `<span class="badge badge-green">${pct(m)}</span>`;
+  if (m >= 30) return `<span class="badge badge-yellow">${pct(m)}</span>`;
+  return `<span class="badge badge-red">${pct(m)}</span>`;
+}
+
+function getFiltered() {
+  const buFilter = document.getElementById('filter-bu').value;
+  const search = document.getElementById('filter-search').value.toLowerCase();
+  return jobs.filter(j => {
+    if (buFilter && j.bu !== buFilter) return false;
+    if (search && !(j.client.toLowerCase().includes(search) || j.address.toLowerCase().includes(search))) return false;
+    return true;
+  });
+}
+
+function renderTable() {
+  const filtered = getFiltered();
+  const tbody = document.getElementById('jobs-tbody');
+  const empty = document.getElementById('empty-state');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = filtered.map(j => `
+    <tr style="cursor:pointer" onclick="showJobDetail('${j.id}')">
+      <td><strong>${esc(j.client)}</strong><br><span style="color:var(--text-muted);font-size:.78rem">${esc(j.address)}</span></td>
+      <td>${esc(j.bu)}</td>
+      <td class="text-right">${fmtMoney(j.invoice)}</td>
+      <td class="text-right">${fmtMoney(j.totalCost)}</td>
+      <td class="text-right" style="font-weight:600;color:${j.profit>=0?'var(--green)':'var(--red)'}">${fmtMoney(j.profit)}</td>
+      <td class="text-right">${marginBadge(j.margin)}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openJobModal('${j.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteJob('${j.id}')">Del</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderSummary() {
+  const total = jobs.length;
+  const revenue = jobs.reduce((s,j) => s + j.invoice, 0);
+  const profit = jobs.reduce((s,j) => s + j.profit, 0);
+  const avgMargin = total > 0 ? jobs.reduce((s,j) => s + j.margin, 0) / total : 0;
+  const marginClass = avgMargin >= 50 ? 'green' : avgMargin >= 30 ? 'yellow' : total === 0 ? '' : 'red';
+  document.getElementById('summary-cards').innerHTML = `
+    <div class="summary-card"><div class="label">Total Jobs</div><div class="value">${total}</div></div>
+    <div class="summary-card"><div class="label">Total Revenue</div><div class="value">${fmtMoney(revenue)}</div></div>
+    <div class="summary-card"><div class="label">Total Profit</div><div class="value ${profit>=0?'green':'red'}">${fmtMoney(profit)}</div></div>
+    <div class="summary-card"><div class="label">Avg Margin</div><div class="value ${marginClass}">${total>0?pct(avgMargin):'—'}</div></div>
+  `;
+}
+
+function renderDashboard() { renderSummary(); renderTable(); }
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ========== JOB DETAIL ==========
+function showJobDetail(id) {
+  const j = jobs.find(x => x.id === id);
+  if (!j) return;
+  const laborRows = (j.laborRows || []).filter(lr => lr.hrs > 0);
+  const laborHTML = laborRows.length > 0
+    ? laborRows.map(lr =>
+        `<tr><td>${esc(lr.name || '—')}</td><td>${esc(lr.role)}</td><td>${lr.hrs}h</td><td>${fmtMoney(lr.rate)}/hr</td><td class="text-right">${fmtMoney(lr.subtotal)}</td></tr>`
+      ).join('')
+    : '<tr><td colspan="5" style="color:var(--text-muted)">No labor entries</td></tr>';
+
+  document.getElementById('view-detail').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+      <button class="btn btn-outline btn-sm" onclick="showView('dashboard')">&larr; Back</button>
+      <h1 style="font-size:1.3rem;">${esc(j.client)} &mdash; ${esc(j.address)}</h1>
+    </div>
+    <div class="detail-section">
+      <div class="detail-grid">
+        <div class="detail-item"><div class="dl">Business Unit</div><div class="dv">${esc(j.bu)}</div></div>
+        <div class="detail-item"><div class="dl">Date</div><div class="dv">${j.date||'—'}</div></div>
+        <div class="detail-item"><div class="dl">Invoice</div><div class="dv">${fmtMoney(j.invoice)}</div></div>
+        <div class="detail-item"><div class="dl">Deposit</div><div class="dv">${fmtMoney(j.deposit)}</div></div>
+        <div class="detail-item"><div class="dl">Balance Due</div><div class="dv">${fmtMoney(j.balance)}</div></div>
+        <div class="detail-item"><div class="dl">Gross Margin</div><div class="dv">${marginBadge(j.margin)}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4 style="margin-bottom:10px;">Cost Breakdown</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Category</th><th class="text-right">Amount</th><th class="text-right">% of Revenue</th></tr></thead>
+          <tbody>
+            <tr><td>Labor (${laborRows.length} worker${laborRows.length!==1?'s':''})</td><td class="text-right">${fmtMoney(j.totalLabor)}</td><td class="text-right">${pct(j.laborPct)}</td></tr>
+            <tr><td>Gas</td><td class="text-right">${fmtMoney(j.gas||0)}</td><td class="text-right">${pct(j.invoice>0?((j.gas||0)/j.invoice)*100:0)}</td></tr>
+            <tr><td>Food</td><td class="text-right">${fmtMoney(j.food||0)}</td><td class="text-right">${pct(j.invoice>0?((j.food||0)/j.invoice)*100:0)}</td></tr>
+            <tr><td>Misc${j.miscNotes?' — '+esc(j.miscNotes):''}</td><td class="text-right">${fmtMoney(j.misc)}</td><td class="text-right">${pct(j.invoice>0?(j.misc/j.invoice)*100:0)}</td></tr>
+            <tr style="font-weight:700;border-top:2px solid var(--accent)"><td>Total Cost</td><td class="text-right">${fmtMoney(j.totalCost)}</td><td class="text-right">${pct(j.invoice>0?(j.totalCost/j.invoice)*100:0)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4 style="margin-bottom:10px;">Labor Detail</h4>
+      <div class="table-wrap">
+        <table><thead><tr><th>Name</th><th>Role</th><th>Hours</th><th>Rate</th><th class="text-right">Cost</th></tr></thead>
+        <tbody>${laborHTML}</tbody></table>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="calc-preview" style="max-width:400px;">
+        <div class="calc-row total"><span>Gross Profit</span><span class="val ${j.profit>=0?'green':'red'}">${fmtMoney(j.profit)}</span></div>
+        <div class="calc-row"><span>Gross Margin</span><span class="val">${pct(j.margin)}</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-primary" onclick="openJobModal('${j.id}')">Edit Job</button>
+      <button class="btn btn-danger" onclick="deleteJob('${j.id}')">Delete Job</button>
+    </div>
+  `;
+  showView('detail');
+}
+
+// ========== CSV EXPORT ==========
+function exportCSV() {
+  if (jobs.length === 0) { alert('No jobs to export.'); return; }
+  const headers = ['Client','Address','Business Unit','Date','Invoice','Deposit','Balance Due',
+    'Labor Workers','Labor Detail','Total Labor',
+    'Gas','Food','Misc Cost','Misc Notes',
+    'Total Job Cost','Gross Profit','Gross Margin %','Labor % of Revenue'];
+  const rows = jobs.map(j => {
+    const lr = j.laborRows || [];
+    const laborDetail = lr.map(l => `${l.name||'Worker'}(${l.role}) ${l.hrs}h@$${l.rate}`).join('; ');
+    return [
+      j.client, j.address, j.bu, j.date, j.invoice, j.deposit, j.balance,
+      lr.length, laborDetail, j.totalLabor,
+      j.gas||0, j.food||0, j.misc, j.miscNotes,
+      j.totalCost, j.profit, j.margin.toFixed(1), j.laborPct.toFixed(1)
+    ];
+  });
+  const csvContent = [headers, ...rows].map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `ardor-house-jobs-${new Date().toISOString().slice(0,10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+// ========== WEEKLY PAYROLL ==========
+const PR_KEY = 'ardorhouse_payroll';
+let payrollData = JSON.parse(localStorage.getItem(PR_KEY) || '{}'); // keyed by week date string
+let prRowCounter = 0;
+
+function savePR() { localStorage.setItem(PR_KEY, JSON.stringify(payrollData)); }
+
+function getCurrentPRWeek() { return document.getElementById('pr-week').value; }
+
+function getMonday() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(today.setDate(diff)).toISOString().slice(0,10);
+}
+
+function initPayroll() {
+  const weekInput = document.getElementById('pr-week');
+  if (!weekInput.value) weekInput.value = getMonday();
+  renderPayroll();
+}
+
+function addPayrollRow(data) {
+  const week = getCurrentPRWeek();
+  if (!week) { alert('Please select a week first.'); return; }
+  const d = data || { name: '', role: 'Stager', days: [0,0,0,0,0,0,0], ratePreset: '20', rateCustom: 20 };
+  if (!payrollData[week]) payrollData[week] = [];
+  if (!data) {
+    payrollData[week].push(d);
+    savePR();
+  }
+  renderPayroll();
+}
+
+function renderPayroll() {
+  const week = getCurrentPRWeek();
+  const tbody = document.getElementById('payroll-tbody');
+  const empty = document.getElementById('payroll-empty');
+  const rows = (payrollData[week] || []);
+
+  if (!week || rows.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    document.getElementById('payroll-summary').innerHTML = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const dayNames = ['mon','tue','wed','thu','fri','sat','sun'];
+  const roleOpts = ROLES.map(r => `<option>${r}</option>`).join('');
+  const presetOpts = RATE_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('');
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const rate = r.ratePreset === 'custom' ? (r.rateCustom||0) : parseFloat(r.ratePreset||20);
+    const totalHrs = (r.days||[]).reduce((s,h) => s + (h||0), 0);
+    const totalPay = totalHrs * rate;
+    const isCustom = r.ratePreset === 'custom';
+
+    const dayCells = dayNames.map((dn, di) =>
+      `<td><input type="number" min="0" step=".5" value="${r.days[di]||0}" style="width:100%;padding:6px 4px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;text-align:center;" onchange="updatePRCell(${i},${di},this.value)"></td>`
+    ).join('');
+
+    const selRole = ROLES.map(ro => `<option${ro===r.role?' selected':''}>${ro}</option>`).join('');
+    const selRate = RATE_PRESETS.map(p => `<option value="${p.value}"${String(p.value)===String(r.ratePreset)?' selected':''}>${p.label}</option>`).join('');
+
+    return `<tr>
+      <td><input type="text" value="${esc(r.name||'')}" placeholder="Name" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;" onchange="updatePRField(${i},'name',this.value)"></td>
+      <td><select style="width:100%;padding:6px 4px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;" onchange="updatePRField(${i},'role',this.value)">${selRole}</select></td>
+      ${dayCells}
+      <td>
+        <div class="rate-group">
+          <select style="min-width:70px;padding:6px 4px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;" onchange="updatePRRate(${i},this.value)">${selRate}</select>
+          <input type="number" min="0" step=".01" value="${r.rateCustom||20}" style="width:65px;padding:6px 4px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;display:${isCustom?'block':'none'}" onchange="updatePRField(${i},'rateCustom',parseFloat(this.value)||0)">
+        </div>
+      </td>
+      <td class="text-right" style="font-weight:600">${totalHrs.toFixed(1)}</td>
+      <td class="text-right" style="font-weight:700;color:var(--accent)">${fmtMoney(totalPay)}</td>
+      <td><button class="btn-icon" onclick="removePRRow(${i})" title="Remove">&times;</button></td>
+    </tr>`;
+  }).join('');
+
+  // summary
+  let grandHrs = 0, grandPay = 0, workerCount = rows.length;
+  rows.forEach(r => {
+    const rate = r.ratePreset === 'custom' ? (r.rateCustom||0) : parseFloat(r.ratePreset||20);
+    const hrs = (r.days||[]).reduce((s,h) => s + (h||0), 0);
+    grandHrs += hrs;
+    grandPay += hrs * rate;
+  });
+
+  document.getElementById('payroll-summary').innerHTML = `
+    <div class="summary-card"><div class="label">Laborers</div><div class="value">${workerCount}</div></div>
+    <div class="summary-card"><div class="label">Total Hours</div><div class="value">${grandHrs.toFixed(1)}</div></div>
+    <div class="summary-card"><div class="label">Weekly Total</div><div class="value" style="color:var(--accent)">${fmtMoney(grandPay)}</div></div>
+  `;
+}
+
+function updatePRCell(rowIdx, dayIdx, val) {
+  const week = getCurrentPRWeek();
+  if (!payrollData[week] || !payrollData[week][rowIdx]) return;
+  payrollData[week][rowIdx].days[dayIdx] = parseFloat(val) || 0;
+  savePR();
+  renderPayroll();
+}
+
+function updatePRField(rowIdx, field, val) {
+  const week = getCurrentPRWeek();
+  if (!payrollData[week] || !payrollData[week][rowIdx]) return;
+  payrollData[week][rowIdx][field] = val;
+  savePR();
+  renderPayroll();
+}
+
+function updatePRRate(rowIdx, val) {
+  const week = getCurrentPRWeek();
+  if (!payrollData[week] || !payrollData[week][rowIdx]) return;
+  payrollData[week][rowIdx].ratePreset = val;
+  savePR();
+  renderPayroll();
+}
+
+function removePRRow(rowIdx) {
+  const week = getCurrentPRWeek();
+  if (!payrollData[week]) return;
+  payrollData[week].splice(rowIdx, 1);
+  savePR();
+  renderPayroll();
+}
+
+// ========== KEYBOARD ==========
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeJobModal();
+});
+document.getElementById('job-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('job-modal')) closeJobModal();
+});
+
+// ========== INIT ==========
+renderDashboard();
+</script>
+</body>
+</html>
