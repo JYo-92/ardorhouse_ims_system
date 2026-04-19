@@ -20,8 +20,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [activeTab, setActiveTab] = useState<Tab>("rooms");
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignRoom, setAssignRoom] = useState("");
-  const [assignItemId, setAssignItemId] = useState("");
-  const [assignQty, setAssignQty] = useState(1);
+  const [assignSelections, setAssignSelections] = useState<Record<string, number>>({});
   const [assignSearch, setAssignSearch] = useState("");
 
   const project = projects.find((p) => p.id === id);
@@ -61,21 +60,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   function openAssign(roomName: string) {
     setAssignRoom(roomName);
-    setAssignItemId("");
-    setAssignQty(1);
+    setAssignSelections({});
     setAssignSearch("");
     setAssignModalOpen(true);
   }
 
+  function toggleSelection(itemId: string) {
+    setAssignSelections((prev) => {
+      const next = { ...prev };
+      if (next[itemId]) delete next[itemId];
+      else next[itemId] = 1;
+      return next;
+    });
+  }
+
+  function setSelectionQty(itemId: string, qty: number) {
+    setAssignSelections((prev) => ({ ...prev, [itemId]: Math.max(1, qty) }));
+  }
+
   async function confirmAssign() {
-    if (!assignItemId) { toast("Select an item", "error"); return; }
+    const ids = Object.keys(assignSelections);
+    if (ids.length === 0) { toast("Select at least one item", "error"); return; }
     const rooms = { ...project!.rooms };
     const rm = [...(rooms[assignRoom] || [])];
-    rm.push({ itemId: assignItemId, qty: assignQty });
+    ids.forEach((itemId) => rm.push({ itemId, qty: assignSelections[itemId] }));
     rooms[assignRoom] = rm;
     await save({ rooms });
     setAssignModalOpen(false);
-    toast("Furniture assigned");
+    toast(`${ids.length} item${ids.length > 1 ? "s" : ""} assigned`);
   }
 
   async function unassign(roomName: string, idx: number) {
@@ -184,17 +196,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <button onClick={() => deleteRoom(rm)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-red text-white border-none cursor-pointer">Remove</button>
                   </span>
                 </h5>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <div className="flex flex-wrap gap-2 mt-1.5">
                   {(project.rooms[rm] || []).length === 0 ? (
                     <span className="text-muted text-xs">No furniture assigned</span>
                   ) : (
                     (project.rooms[rm] || []).map((a, ai) => {
                       const it = inventory.find((i) => i.id === a.itemId);
+                      const thumb = it?.images?.[0];
                       return (
-                        <span key={ai} className="inline-flex items-center gap-1 bg-card border border-border rounded-full py-1 px-2.5 text-xs">
-                          {it ? it.name : "Unknown"}{a.qty > 1 ? ` x${a.qty}` : ""}{it?.size ? ` (${it.size})` : ""}
-                          <span className="cursor-pointer text-red font-bold ml-0.5" onClick={() => unassign(rm, ai)}>✕</span>
-                        </span>
+                        <div key={ai} className="relative bg-card border border-border rounded-lg w-28 overflow-hidden group">
+                          <button
+                            onClick={() => unassign(rm, ai)}
+                            className="absolute top-1 right-1 z-10 bg-red text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer border-none opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove"
+                          >
+                            ✕
+                          </button>
+                          <div className="w-full aspect-square bg-background flex items-center justify-center">
+                            {thumb ? (
+                              <img src={thumb} alt={it?.name || ""} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-3xl text-muted">🛋️</span>
+                            )}
+                          </div>
+                          <div className="p-1.5">
+                            <div className="text-xs font-semibold truncate">{it ? it.name : "Unknown"}</div>
+                            <div className="text-[.65rem] text-muted flex justify-between">
+                              <span className="truncate">{it?.size || ""}</span>
+                              {a.qty > 1 && <span className="font-semibold text-foreground">x{a.qty}</span>}
+                            </div>
+                          </div>
+                        </div>
                       );
                     })
                   )}
@@ -321,15 +353,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   }
                   return list.map((i) => {
                     const avail = getAvail(i.id, inventory, projects);
-                    const selected = assignItemId === i.id;
+                    const selected = i.id in assignSelections;
+                    const qty = assignSelections[i.id] || 1;
                     const thumb = i.images?.[0];
                     return (
-                      <button
+                      <div
                         key={i.id}
-                        type="button"
-                        onClick={() => setAssignItemId(i.id)}
-                        className={`text-left rounded-lg border p-2 cursor-pointer transition-all bg-card ${selected ? "border-accent ring-2 ring-accent/30" : "border-border hover:border-accent/50"}`}
+                        onClick={() => toggleSelection(i.id)}
+                        className={`relative text-left rounded-lg border p-2 cursor-pointer transition-all bg-card ${selected ? "border-accent ring-2 ring-accent/30" : "border-border hover:border-accent/50"}`}
                       >
+                        {selected && (
+                          <div className="absolute top-1 right-1 z-10 bg-accent text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">✓</div>
+                        )}
                         <div className="w-full aspect-square rounded bg-background overflow-hidden flex items-center justify-center mb-1.5">
                           {thumb ? (
                             <img src={thumb} alt={i.name} className="w-full h-full object-cover" />
@@ -342,18 +377,31 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           <span className="truncate">{i.size || i.category}</span>
                           <span className={avail > 0 ? "" : "text-red"}>Avail: {avail}</span>
                         </div>
-                      </button>
+                        {selected && (
+                          <div className="mt-1.5 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <label className="text-[.65rem] text-muted">Qty</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={qty}
+                              onChange={(e) => setSelectionQty(i.id, parseInt(e.target.value) || 1)}
+                              className="w-full py-1 px-1.5 border border-border rounded text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
                     );
                   });
                 })()}
               </div>
-              <div className="flex items-center gap-3 mt-4">
-                <label className="text-xs font-semibold text-muted">Quantity</label>
-                <input type="number" min={1} value={assignQty} onChange={(e) => setAssignQty(parseInt(e.target.value) || 1)} className="w-24 py-2 px-2.5 border border-border rounded-lg text-sm" />
-                {assignItemId && (
-                  <span className="text-xs text-muted">
-                    Selected: <strong className="text-foreground">{inventory.find((i) => i.id === assignItemId)?.name}</strong>
-                  </span>
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <span className="text-xs text-muted">
+                  {Object.keys(assignSelections).length === 0
+                    ? "Click items to select. Click again to deselect."
+                    : <><strong className="text-foreground">{Object.keys(assignSelections).length}</strong> item{Object.keys(assignSelections).length > 1 ? "s" : ""} selected</>}
+                </span>
+                {Object.keys(assignSelections).length > 0 && (
+                  <button onClick={() => setAssignSelections({})} className="text-xs text-muted hover:text-accent underline bg-transparent border-none cursor-pointer">Clear</button>
                 )}
               </div>
             </div>
