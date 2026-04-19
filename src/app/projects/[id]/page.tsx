@@ -5,11 +5,11 @@ import { useProjects, saveProject } from "@/hooks/use-projects";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
 import { ROOMS, LABOR_ROLES } from "@/lib/constants";
-import { formatMoney, formatPercent, projCalc, getAvail } from "@/lib/calculations";
+import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost } from "@/lib/calculations";
 import type { Project, LaborEntry, MiscLine } from "@/lib/types";
 import Link from "next/link";
 
-type Tab = "rooms" | "labor" | "logistics" | "misc" | "pnl";
+type Tab = "rooms" | "labor" | "misc" | "pnl";
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,6 +22,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [assignRoom, setAssignRoom] = useState("");
   const [assignItemId, setAssignItemId] = useState("");
   const [assignQty, setAssignQty] = useState(1);
+  const [assignSearch, setAssignSearch] = useState("");
 
   const project = projects.find((p) => p.id === id);
   if (!project) {
@@ -62,6 +63,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setAssignRoom(roomName);
     setAssignItemId("");
     setAssignQty(1);
+    setAssignSearch("");
     setAssignModalOpen(true);
   }
 
@@ -86,7 +88,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Labor management
   async function addLabor() {
-    const labor = [...(project!.labor || []), { role: "Stager", workers: 1, hours: 0, rate: 0 }];
+    const labor = [...(project!.labor || []), { name: "", role: "Stager", start_time: "09:00", end_time: "17:00", rate: 0 }];
     await save({ labor });
   }
 
@@ -123,7 +125,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const tabs: { key: Tab; label: string }[] = [
     { key: "rooms", label: "Rooms & Furniture" },
     { key: "labor", label: "Labor" },
-    { key: "logistics", label: "Logistics & Storage" },
     { key: "misc", label: "Miscellaneous" },
     { key: "pnl", label: "P&L Summary" },
   ];
@@ -215,49 +216,31 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    {["Role", "Workers", "Hours", "Rate ($/hr)", "Cost", ""].map((h, i) => (
+                    {["Name", "Role", "Start", "End", "Hours", "Rate ($/hr)", "Cost", ""].map((h, i) => (
                       <th key={i} className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(project.labor || []).map((l, i) => (
-                    <tr key={i}>
-                      <td className="py-2 px-3 border-b border-border"><select value={l.role} onChange={(e) => updateLabor(i, "role", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm">{LABOR_ROLES.map((r) => <option key={r}>{r}</option>)}</select></td>
-                      <td className="py-2 px-3 border-b border-border"><input type="number" min={1} value={l.workers} onChange={(e) => updateLabor(i, "workers", parseInt(e.target.value) || 1)} className="w-16 py-1.5 px-2 border border-border rounded text-sm" /></td>
-                      <td className="py-2 px-3 border-b border-border"><input type="number" min={0} step={0.5} value={l.hours} onChange={(e) => updateLabor(i, "hours", parseFloat(e.target.value) || 0)} className="w-20 py-1.5 px-2 border border-border rounded text-sm" /></td>
-                      <td className="py-2 px-3 border-b border-border"><input type="number" min={0} step={0.01} value={l.rate} onChange={(e) => updateLabor(i, "rate", parseFloat(e.target.value) || 0)} className="w-24 py-1.5 px-2 border border-border rounded text-sm" /></td>
-                      <td className="py-2 px-3 border-b border-border font-semibold">{formatMoney(l.workers * l.hours * l.rate)}</td>
-                      <td className="py-2 px-3 border-b border-border"><button onClick={() => removeLabor(i)} className="py-1 px-2 text-xs font-semibold rounded bg-red text-white border-none cursor-pointer">Del</button></td>
-                    </tr>
-                  ))}
+                  {(project.labor || []).map((l, i) => {
+                    const hrs = getLaborHours(l);
+                    return (
+                      <tr key={i}>
+                        <td className="py-2 px-3 border-b border-border"><input value={l.name || ""} onChange={(e) => updateLabor(i, "name", e.target.value)} placeholder="Name" className="w-32 py-1.5 px-2 border border-border rounded text-sm" /></td>
+                        <td className="py-2 px-3 border-b border-border"><select value={l.role} onChange={(e) => updateLabor(i, "role", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm">{LABOR_ROLES.map((r) => <option key={r}>{r}</option>)}</select></td>
+                        <td className="py-2 px-3 border-b border-border"><input type="time" value={l.start_time || ""} onChange={(e) => updateLabor(i, "start_time", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
+                        <td className="py-2 px-3 border-b border-border"><input type="time" value={l.end_time || ""} onChange={(e) => updateLabor(i, "end_time", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
+                        <td className="py-2 px-3 border-b border-border text-muted">{hrs.toFixed(2)}</td>
+                        <td className="py-2 px-3 border-b border-border"><input type="number" min={0} step={0.01} value={l.rate} onChange={(e) => updateLabor(i, "rate", parseFloat(e.target.value) || 0)} className="w-24 py-1.5 px-2 border border-border rounded text-sm" /></td>
+                        <td className="py-2 px-3 border-b border-border font-semibold">{formatMoney(getLaborCost(l))}</td>
+                        <td className="py-2 px-3 border-b border-border"><button onClick={() => removeLabor(i)} className="py-1 px-2 text-xs font-semibold rounded bg-red text-white border-none cursor-pointer">Del</button></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Logistics & Storage Tab */}
-      {activeTab === "logistics" && (
-        <div className="grid grid-cols-2 gap-6 max-sm:grid-cols-1">
-          <div>
-            <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">Logistics</h4>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Truck Runs</label><input type="number" min={0} value={project.log_runs} onChange={(e) => save({ log_runs: parseInt(e.target.value) || 0 })} className="py-2 px-2.5 border border-border rounded-lg text-sm" /></div>
-              <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Miles/Run</label><input type="number" min={0} step={0.1} value={project.log_miles} onChange={(e) => save({ log_miles: parseFloat(e.target.value) || 0 })} className="py-2 px-2.5 border border-border rounded-lg text-sm" /></div>
-              <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">$/Mile</label><input type="number" min={0} step={0.01} value={project.log_cpm} onChange={(e) => save({ log_cpm: parseFloat(e.target.value) || 0.67 })} className="py-2 px-2.5 border border-border rounded-lg text-sm" /></div>
-            </div>
-            <div className="mt-2 text-sm font-semibold">Total: {formatMoney(project.log_runs * project.log_miles * project.log_cpm)}</div>
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">Storage</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Pulls</label><input type="number" min={0} value={project.stor_pulls} onChange={(e) => save({ stor_pulls: parseInt(e.target.value) || 0 })} className="py-2 px-2.5 border border-border rounded-lg text-sm" /></div>
-              <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">$/Pull</label><input type="number" min={0} step={0.01} value={project.stor_cpp} onChange={(e) => save({ stor_cpp: parseFloat(e.target.value) || 0 })} className="py-2 px-2.5 border border-border rounded-lg text-sm" /></div>
-            </div>
-            <div className="mt-2 text-sm font-semibold">Total: {formatMoney(project.stor_pulls * project.stor_cpp)}</div>
-          </div>
         </div>
       )}
 
@@ -300,8 +283,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <div className="flex justify-between py-1 text-sm"><span>Balance Due</span><span className="font-semibold">{formatMoney(calc.balance)}</span></div>
           <div className="h-px bg-border my-2" />
           <div className="flex justify-between py-1 text-sm"><span>Labor</span><span className="font-semibold">{formatMoney(calc.totalLabor)}</span></div>
-          <div className="flex justify-between py-1 text-sm"><span>Logistics</span><span className="font-semibold">{formatMoney(calc.totalLog)}</span></div>
-          <div className="flex justify-between py-1 text-sm"><span>Storage</span><span className="font-semibold">{formatMoney(calc.totalStor)}</span></div>
           <div className="flex justify-between py-1 text-sm"><span>Miscellaneous</span><span className="font-semibold">{formatMoney(calc.totalMisc)}</span></div>
           <div className="flex justify-between py-1 text-sm"><span>Inventory Cost</span><span className="font-semibold">{formatMoney(calc.totalInvCost)}</span></div>
           <div className="h-px bg-border my-2" />
@@ -317,30 +298,64 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* Assign Furniture Modal */}
       {assignModalOpen && (
         <div className="fixed inset-0 bg-black/45 z-[300] flex justify-center items-start p-7 overflow-y-auto" onClick={(e) => { if (e.target === e.currentTarget) setAssignModalOpen(false); }}>
-          <div className="bg-card rounded-xl w-full max-w-[600px] shadow-2xl animate-[slideUp_0.25s_ease]">
+          <div className="bg-card rounded-xl w-full max-w-[860px] shadow-2xl animate-[slideUp_0.25s_ease]">
             <div className="flex justify-between items-center py-4 px-6 border-b border-border">
               <h3 className="text-lg font-semibold">Assign Furniture to {assignRoom}</h3>
               <button onClick={() => setAssignModalOpen(false)} className="bg-transparent border-none text-xl cursor-pointer text-muted">&times;</button>
             </div>
             <div className="p-5 px-6">
-              <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-muted">Inventory Item</label>
-                  <select value={assignItemId} onChange={(e) => setAssignItemId(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm">
-                    <option value="">Select item...</option>
-                    {inventory.map((i) => <option key={i.id} value={i.id}>{i.name}{i.size ? ` (${i.size})` : ""} — Avail: {getAvail(i.id, inventory, projects)}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-muted">Quantity</label>
-                  <input type="number" min={1} value={assignQty} onChange={(e) => setAssignQty(parseInt(e.target.value) || 1)} className="py-2 px-2.5 border border-border rounded-lg text-sm" />
-                </div>
+              <input
+                value={assignSearch}
+                onChange={(e) => setAssignSearch(e.target.value)}
+                placeholder="Search inventory by name or category..."
+                className="w-full py-2 px-2.5 border border-border rounded-lg text-sm mb-3 focus:outline-none focus:border-accent"
+              />
+              <div className="grid grid-cols-4 max-md:grid-cols-3 max-sm:grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
+                {(() => {
+                  const q = assignSearch.trim().toLowerCase();
+                  const list = inventory.filter((i) =>
+                    !q || i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q)
+                  );
+                  if (list.length === 0) {
+                    return <div className="col-span-full py-8 text-center text-muted text-sm">No items match.</div>;
+                  }
+                  return list.map((i) => {
+                    const avail = getAvail(i.id, inventory, projects);
+                    const selected = assignItemId === i.id;
+                    const thumb = i.images?.[0];
+                    return (
+                      <button
+                        key={i.id}
+                        type="button"
+                        onClick={() => setAssignItemId(i.id)}
+                        className={`text-left rounded-lg border p-2 cursor-pointer transition-all bg-card ${selected ? "border-accent ring-2 ring-accent/30" : "border-border hover:border-accent/50"}`}
+                      >
+                        <div className="w-full aspect-square rounded bg-background overflow-hidden flex items-center justify-center mb-1.5">
+                          {thumb ? (
+                            <img src={thumb} alt={i.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-3xl text-muted">🛋️</span>
+                          )}
+                        </div>
+                        <div className="text-xs font-semibold truncate">{i.name}</div>
+                        <div className="text-[.65rem] text-muted flex justify-between mt-0.5">
+                          <span className="truncate">{i.size || i.category}</span>
+                          <span className={avail > 0 ? "" : "text-red"}>Avail: {avail}</span>
+                        </div>
+                      </button>
+                    );
+                  });
+                })()}
               </div>
-              {assignItemId && (
-                <div className="mt-2.5 text-xs text-muted">
-                  Available: {getAvail(assignItemId, inventory, projects)}
-                </div>
-              )}
+              <div className="flex items-center gap-3 mt-4">
+                <label className="text-xs font-semibold text-muted">Quantity</label>
+                <input type="number" min={1} value={assignQty} onChange={(e) => setAssignQty(parseInt(e.target.value) || 1)} className="w-24 py-2 px-2.5 border border-border rounded-lg text-sm" />
+                {assignItemId && (
+                  <span className="text-xs text-muted">
+                    Selected: <strong className="text-foreground">{inventory.find((i) => i.id === assignItemId)?.name}</strong>
+                  </span>
+                )}
+              </div>
             </div>
             <div className="py-3.5 px-6 border-t border-border flex justify-end gap-2">
               <button onClick={() => setAssignModalOpen(false)} className="py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background">Cancel</button>

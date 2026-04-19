@@ -27,11 +27,6 @@ export interface Project {
   deposit: number;
   rooms: Record<string, RoomAssignment[]>;
   labor: LaborEntry[];
-  log_runs: number;
-  log_miles: number;
-  log_cpm: number;
-  stor_pulls: number;
-  stor_cpp: number;
   misc_lines: MiscLine[];
   created_at?: string;
   updated_at?: string;
@@ -43,10 +38,12 @@ export interface RoomAssignment {
 }
 
 export interface LaborEntry {
+  name?: string;
   role: string;
-  workers: number;
-  hours: number;
+  start_time?: string;
+  end_time?: string;
   rate: number;
+  hours?: number;
 }
 
 export interface MiscLine {
@@ -71,8 +68,6 @@ export interface PayrollEntry {
 
 export interface ProjectCalc {
   totalLabor: number;
-  totalLog: number;
-  totalStor: number;
   totalMisc: number;
   totalInvCost: number;
   totalCost: number;

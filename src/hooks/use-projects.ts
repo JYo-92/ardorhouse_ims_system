@@ -27,11 +27,6 @@ async function fetchProjects(): Promise<Project[]> {
     deposit: Number(r.deposit),
     rooms: r.rooms || {},
     labor: r.labor || [],
-    log_runs: r.log_runs || 0,
-    log_miles: Number(r.log_miles) || 0,
-    log_cpm: Number(r.log_cpm) || 0.67,
-    stor_pulls: r.stor_pulls || 0,
-    stor_cpp: Number(r.stor_cpp) || 0,
     misc_lines: r.misc_lines || [],
   }));
 }
@@ -65,11 +60,6 @@ export async function saveProject(p: Project) {
     deposit: p.deposit,
     rooms: p.rooms || {},
     labor: p.labor || [],
-    log_runs: p.log_runs || 0,
-    log_miles: p.log_miles || 0,
-    log_cpm: p.log_cpm || 0.67,
-    stor_pulls: p.stor_pulls || 0,
-    stor_cpp: p.stor_cpp || 0,
     misc_lines: p.misc_lines || [],
     updated_at: new Date().toISOString(),
   });

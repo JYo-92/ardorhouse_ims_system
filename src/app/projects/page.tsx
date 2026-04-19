@@ -82,7 +82,7 @@ export default function ProjectsPage() {
     try {
       const p: Project = editProj
         ? { ...editProj, name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, invoice: fInvoice, deposit: fDeposit }
-        : { id: generateId(), name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, invoice: fInvoice, deposit: fDeposit, rooms: {}, labor: [], log_runs: 0, log_miles: 0, log_cpm: 0.67, stor_pulls: 0, stor_cpp: 0, misc_lines: [] };
+        : { id: generateId(), name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, invoice: fInvoice, deposit: fDeposit, rooms: {}, labor: [], misc_lines: [] };
       await saveProject(p);
       await mutate();
       setModalOpen(false);

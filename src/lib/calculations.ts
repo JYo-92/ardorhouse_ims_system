@@ -1,4 +1,19 @@
-import type { Project, InventoryItem, ProjectCalc } from "./types";
+import type { Project, InventoryItem, ProjectCalc, LaborEntry } from "./types";
+
+export function getLaborHours(l: LaborEntry): number {
+  if (l.start_time && l.end_time) {
+    const [sh, sm] = l.start_time.split(":").map(Number);
+    const [eh, em] = l.end_time.split(":").map(Number);
+    let mins = eh * 60 + em - (sh * 60 + sm);
+    if (mins < 0) mins += 24 * 60;
+    return mins / 60;
+  }
+  return l.hours || 0;
+}
+
+export function getLaborCost(l: LaborEntry): number {
+  return getLaborHours(l) * (l.rate || 0);
+}
 
 export function formatMoney(n: number): string {
   return (
@@ -66,11 +81,8 @@ export function projCalc(
   let pieces = 0;
 
   (p.labor || []).forEach((l) => {
-    totalLabor += (l.workers || 0) * (l.hours || 0) * (l.rate || 0);
+    totalLabor += getLaborCost(l);
   });
-
-  const totalLog = (p.log_runs || 0) * (p.log_miles || 0) * (p.log_cpm || 0.67);
-  const totalStor = (p.stor_pulls || 0) * (p.stor_cpp || 0);
 
   (p.misc_lines || []).forEach((m) => {
     totalMisc += m.amount || 0;
@@ -86,7 +98,7 @@ export function projCalc(
     });
   }
 
-  const totalCost = totalLabor + totalLog + totalStor + totalMisc + totalInvCost;
+  const totalCost = totalLabor + totalMisc + totalInvCost;
   const invoice = p.invoice || 0;
   const profit = invoice - totalCost;
   const margin = invoice > 0 ? (profit / invoice) * 100 : 0;
@@ -96,8 +108,6 @@ export function projCalc(
 
   return {
     totalLabor,
-    totalLog,
-    totalStor,
     totalMisc,
     totalInvCost,
     totalCost,

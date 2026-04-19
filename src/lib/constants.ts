@@ -37,7 +37,7 @@ export const ROOMS = [
   "Other",
 ] as const;
 
-export const LABOR_ROLES = ["Lead Stager", "Stager", "Driver", "Installer"] as const;
+export const LABOR_ROLES = ["Stager", "Mover"] as const;
 
 export const BUSINESS_UNITS = [
   "Staging",
