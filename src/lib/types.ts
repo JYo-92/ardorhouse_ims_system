@@ -40,6 +40,7 @@ export interface RoomAssignment {
 export interface LaborEntry {
   name?: string;
   role: string;
+  date?: string;
   start_time?: string;
   end_time?: string;
   rate: number;

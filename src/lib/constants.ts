@@ -16,6 +16,8 @@ export const CATEGORIES = [
   "Sideboard",
   "Outdoor Seating Set",
   "Outdoor Dining Set",
+  "Office Desk",
+  "Office Chair",
 ] as const;
 
 export const SIZES: Record<string, string[]> = {

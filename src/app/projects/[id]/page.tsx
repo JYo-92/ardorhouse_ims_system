@@ -103,7 +103,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Labor management
   async function addLabor() {
-    const labor = [...(project!.labor || []), { name: "", role: "Stager", start_time: "09:00", end_time: "17:00", rate: 0 }];
+    const today = new Date().toISOString().slice(0, 10);
+    const labor = [...(project!.labor || []), { name: "", role: "Stager", date: today, start_time: "09:00", end_time: "17:00", rate: 0 }];
     await save({ labor });
   }
 
@@ -252,7 +253,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    {["Name", "Role", "Start", "End", "Hours", "Rate ($/hr)", "Cost", ""].map((h, i) => (
+                    {["Name", "Role", "Date", "Start", "End", "Hours", "Rate ($/hr)", "Cost", ""].map((h, i) => (
                       <th key={i} className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">{h}</th>
                     ))}
                   </tr>
@@ -264,6 +265,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       <tr key={i}>
                         <td className="py-2 px-3 border-b border-border"><input value={l.name || ""} onChange={(e) => updateLabor(i, "name", e.target.value)} placeholder="Name" className="w-32 py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border"><select value={l.role} onChange={(e) => updateLabor(i, "role", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm">{LABOR_ROLES.map((r) => <option key={r}>{r}</option>)}</select></td>
+                        <td className="py-2 px-3 border-b border-border"><input type="date" value={l.date || ""} onChange={(e) => updateLabor(i, "date", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border"><input type="time" value={l.start_time || ""} onChange={(e) => updateLabor(i, "start_time", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border"><input type="time" value={l.end_time || ""} onChange={(e) => updateLabor(i, "end_time", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border text-muted">{hrs.toFixed(2)}</td>
