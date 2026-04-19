@@ -4,7 +4,7 @@ import { useState, use } from "react";
 import { useProjects, saveProject } from "@/hooks/use-projects";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
-import { ROOMS, LABOR_ROLES } from "@/lib/constants";
+import { LABOR_ROLES } from "@/lib/constants";
 import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost } from "@/lib/calculations";
 import type { Project, LaborEntry, MiscLine } from "@/lib/types";
 import Link from "next/link";
@@ -22,6 +22,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [assignRoom, setAssignRoom] = useState("");
   const [assignSelections, setAssignSelections] = useState<Record<string, number>>({});
   const [assignSearch, setAssignSearch] = useState("");
+  const [newRoomName, setNewRoomName] = useState("");
 
   const project = projects.find((p) => p.id === id);
   if (!project) {
@@ -35,7 +36,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const calc = projCalc(project, inventory);
   const roomKeys = Object.keys(project.rooms || {});
-  const availRooms = ROOMS.filter((r) => !roomKeys.includes(r));
 
   async function save(updated: Partial<Project>) {
     const p = { ...project!, ...updated };
@@ -45,9 +45,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Room management
   async function addRoom(roomName: string) {
-    if (!roomName || roomKeys.includes(roomName)) return;
-    await save({ rooms: { ...project!.rooms, [roomName]: [] } });
-    toast(`Room "${roomName}" added`);
+    const name = roomName.trim();
+    if (!name) return;
+    if (roomKeys.includes(name)) { toast(`Room "${name}" already exists`, "error"); return; }
+    await save({ rooms: { ...project!.rooms, [name]: [] } });
+    setNewRoomName("");
+    toast(`Room "${name}" added`);
   }
 
   async function deleteRoom(roomName: string) {
@@ -175,13 +178,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {activeTab === "rooms" && (
         <div>
           <div className="flex gap-2 mb-4">
-            {availRooms.length > 0 && (
-              <select id="add-room-select" className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card" defaultValue="">
-                <option value="">Add a room...</option>
-                {availRooms.map((r) => <option key={r}>{r}</option>)}
-              </select>
-            )}
-            <button onClick={() => { const sel = document.getElementById("add-room-select") as HTMLSelectElement; if (sel?.value) { addRoom(sel.value); sel.value = ""; } }} className="py-1.5 px-3 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer hover:bg-accent2">+ Add Room</button>
+            <input
+              value={newRoomName}
+              onChange={(e) => setNewRoomName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addRoom(newRoomName); }}
+              placeholder="Room name (e.g. Living Room)"
+              className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card focus:outline-none focus:border-accent"
+            />
+            <button onClick={() => addRoom(newRoomName)} className="py-1.5 px-3 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer hover:bg-accent2">+ Add Room</button>
           </div>
 
           {roomKeys.length === 0 ? (
