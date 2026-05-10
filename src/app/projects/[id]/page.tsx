@@ -351,11 +351,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <div className="grid grid-cols-4 max-md:grid-cols-3 max-sm:grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
                 {(() => {
                   const q = assignSearch.trim().toLowerCase();
-                  const list = inventory.filter((i) =>
-                    !q || i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q)
-                  );
+                  const list = inventory.filter((i) => {
+                    if (getAvail(i.id, inventory, projects) <= 0 && !(i.id in assignSelections)) return false;
+                    if (!q) return true;
+                    return i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q);
+                  });
                   if (list.length === 0) {
-                    return <div className="col-span-full py-8 text-center text-muted text-sm">No items match.</div>;
+                    return <div className="col-span-full py-8 text-center text-muted text-sm">No available items match.</div>;
                   }
                   return list.map((i) => {
                     const avail = getAvail(i.id, inventory, projects);

@@ -5,9 +5,10 @@ import { useInventory, saveInventoryItem, deleteInventoryItem, uploadImage } fro
 import { useProjects } from "@/hooks/use-projects";
 import { useToast } from "@/components/layout/toast-provider";
 import { CATEGORIES, SIZES } from "@/lib/constants";
-import { formatMoney, generateId, getAvail, getItemStatus } from "@/lib/calculations";
+import { formatMoney, generateId, getAvail, getItemStatus, getStagedByProject } from "@/lib/calculations";
 import { downloadCSV } from "@/lib/csv";
 import type { InventoryItem } from "@/lib/types";
+import Link from "next/link";
 
 export default function InventoryPage() {
   const { inventory, mutate: mutateInv } = useInventory();
@@ -233,11 +234,26 @@ export default function InventoryPage() {
                 const avail = getAvail(item.id, inventory, projects);
                 const st = getItemStatus(item, projects);
                 const shortage = avail === 0 && item.qty > 0;
+                const stagedIn = getStagedByProject(item.id, projects);
                 return (
                   <tr key={item.id} className="hover:bg-[#f9fafb]">
                     <td className="py-2.5 px-3 border-b border-border">
                       <strong>{item.name}</strong>
                       {shortage && <span className="ml-1.5 inline-block py-0.5 px-2 rounded-full text-xs font-semibold bg-[#fee2e2] text-red">SHORTAGE</span>}
+                      {stagedIn.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <span className="text-[.65rem] text-muted self-center">Staged in:</span>
+                          {stagedIn.map((s) => (
+                            <Link
+                              key={s.projectId}
+                              href={`/projects/${s.projectId}`}
+                              className="inline-block py-0.5 px-1.5 rounded bg-[#e0e7ff] text-[#4338ca] text-[.65rem] font-semibold no-underline hover:bg-[#c7d2fe]"
+                            >
+                              {s.projectName}{s.qty > 1 ? ` ×${s.qty}` : ""}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
                       {item.images?.length > 0 && (
                         <div className="flex gap-1.5 flex-wrap mt-1">
                           {item.images.slice(0, 3).map((src, idx) => (

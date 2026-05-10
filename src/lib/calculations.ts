@@ -50,6 +50,24 @@ export function getStaged(
   return staged;
 }
 
+export function getStagedByProject(
+  itemId: string,
+  projects: Project[]
+): { projectId: string; projectName: string; qty: number }[] {
+  const out: { projectId: string; projectName: string; qty: number }[] = [];
+  projects.forEach((p) => {
+    if (!p.rooms) return;
+    let qty = 0;
+    Object.values(p.rooms).forEach((rm) => {
+      (rm || []).forEach((a) => {
+        if (a.itemId === itemId) qty += a.qty;
+      });
+    });
+    if (qty > 0) out.push({ projectId: p.id, projectName: p.name, qty });
+  });
+  return out;
+}
+
 export function getAvail(
   itemId: string,
   inventory: InventoryItem[],
