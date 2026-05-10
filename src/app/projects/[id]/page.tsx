@@ -3,9 +3,10 @@
 import { useState, use } from "react";
 import { useProjects, saveProject } from "@/hooks/use-projects";
 import { useInventory } from "@/hooks/use-inventory";
+import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/components/layout/toast-provider";
-import { LABOR_ROLES } from "@/lib/constants";
-import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost } from "@/lib/calculations";
+import { LABOR_ROLES, PROJECT_STATUSES } from "@/lib/constants";
+import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost, getAllCategories } from "@/lib/calculations";
 import type { Project, LaborEntry, MiscLine } from "@/lib/types";
 import Link from "next/link";
 
@@ -15,6 +16,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const { projects, mutate } = useProjects();
   const { inventory } = useInventory();
+  const { categories: dbCategories } = useCategories();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>("rooms");
@@ -22,6 +24,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [assignRoom, setAssignRoom] = useState("");
   const [assignSelections, setAssignSelections] = useState<Record<string, number>>({});
   const [assignSearch, setAssignSearch] = useState("");
+  const [assignCategory, setAssignCategory] = useState("");
   const [newRoomName, setNewRoomName] = useState("");
 
   const project = projects.find((p) => p.id === id);
@@ -65,6 +68,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setAssignRoom(roomName);
     setAssignSelections({});
     setAssignSearch("");
+    setAssignCategory("");
     setAssignModalOpen(true);
   }
 
@@ -151,9 +155,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     <div>
       <Link href="/projects" className="text-sm text-muted hover:text-accent no-underline">← Back to Projects</Link>
 
-      <div className="flex items-center gap-3 mt-3 mb-5">
+      <div className="flex items-center gap-3 mt-3 mb-5 flex-wrap">
         <h1 className="text-xl font-semibold">{project.name}</h1>
-        <span className={`inline-block py-0.5 px-2 rounded-full text-xs font-semibold ${statusCls}`}>{project.status}</span>
+        <select
+          value={project.status}
+          onChange={(e) => save({ status: e.target.value })}
+          className={`py-1 px-2 rounded-full text-xs font-semibold border-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30 ${statusCls}`}
+          title="Change status"
+        >
+          {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
       </div>
 
       {/* Info Grid */}
@@ -342,17 +353,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <button onClick={() => setAssignModalOpen(false)} className="bg-transparent border-none text-xl cursor-pointer text-muted">&times;</button>
             </div>
             <div className="p-5 px-6">
-              <input
-                value={assignSearch}
-                onChange={(e) => setAssignSearch(e.target.value)}
-                placeholder="Search inventory by name or category..."
-                className="w-full py-2 px-2.5 border border-border rounded-lg text-sm mb-3 focus:outline-none focus:border-accent"
-              />
+              <div className="flex gap-2 mb-3 max-sm:flex-col">
+                <input
+                  value={assignSearch}
+                  onChange={(e) => setAssignSearch(e.target.value)}
+                  placeholder="Search inventory by name or category..."
+                  className="flex-1 py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                />
+                <select
+                  value={assignCategory}
+                  onChange={(e) => setAssignCategory(e.target.value)}
+                  className="py-2 px-2.5 border border-border rounded-lg text-sm bg-card focus:outline-none focus:border-accent"
+                >
+                  <option value="">All Categories</option>
+                  {getAllCategories(inventory, dbCategories).map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-4 max-md:grid-cols-3 max-sm:grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
                 {(() => {
                   const q = assignSearch.trim().toLowerCase();
                   const list = inventory.filter((i) => {
                     if (getAvail(i.id, inventory, projects) <= 0 && !(i.id in assignSelections)) return false;
+                    if (assignCategory && i.category !== assignCategory) return false;
                     if (!q) return true;
                     return i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q);
                   });

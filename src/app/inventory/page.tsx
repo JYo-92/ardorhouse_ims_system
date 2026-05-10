@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useInventory, saveInventoryItem, deleteInventoryItem, uploadImage } from "@/hooks/use-inventory";
 import { useProjects } from "@/hooks/use-projects";
+import { useCategories, addCategory, deleteCategory } from "@/hooks/use-categories";
 import { useToast } from "@/components/layout/toast-provider";
-import { CATEGORIES, SIZES } from "@/lib/constants";
-import { formatMoney, generateId, getAvail, getItemStatus, getStagedByProject } from "@/lib/calculations";
+import { SIZES } from "@/lib/constants";
+import { generateId, getAvail, getItemStatus, getStagedByProject, getAllCategories, countItemsInCategory } from "@/lib/calculations";
 import { downloadCSV } from "@/lib/csv";
 import type { InventoryItem } from "@/lib/types";
 import Link from "next/link";
@@ -13,12 +14,56 @@ import Link from "next/link";
 export default function InventoryPage() {
   const { inventory, mutate: mutateInv } = useInventory();
   const { projects } = useProjects();
+  const { categories: dbCategories, mutate: mutateCats } = useCategories();
   const { toast } = useToast();
 
   const [filterCat, setFilterCat] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSize, setFilterSize] = useState("");
   const [search, setSearch] = useState("");
+
+  const allCategories = getAllCategories(inventory, dbCategories);
+
+  // Manage Categories modal
+  const [catModalOpen, setCatModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [catSaving, setCatSaving] = useState(false);
+
+  async function handleAddCategory() {
+    const name = newCatName.trim();
+    if (!name) return;
+    if (allCategories.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      toast(`"${name}" already exists`, "error");
+      return;
+    }
+    setCatSaving(true);
+    try {
+      await addCategory(name);
+      await mutateCats();
+      setNewCatName("");
+      toast(`"${name}" added`);
+    } catch (err) {
+      toast("Error: " + (err as Error).message, "error");
+    } finally {
+      setCatSaving(false);
+    }
+  }
+
+  async function handleDeleteCategory(name: string) {
+    const inUse = countItemsInCategory(name, inventory);
+    if (inUse > 0) {
+      toast(`Can't delete "${name}" — ${inUse} item${inUse > 1 ? "s use" : " uses"} it. Re-categorize first.`, "error");
+      return;
+    }
+    if (!confirm(`Delete category "${name}"?`)) return;
+    try {
+      await deleteCategory(name);
+      await mutateCats();
+      toast(`"${name}" deleted`);
+    } catch (err) {
+      toast("Error: " + (err as Error).message, "error");
+    }
+  }
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
@@ -81,7 +126,7 @@ export default function InventoryPage() {
   }
 
   async function handleSave() {
-    if (!formName.trim() || !formCat) {
+    if (!formName.trim() || !formCat.trim()) {
       toast("Name and category required", "error");
       return;
     }
@@ -97,7 +142,7 @@ export default function InventoryPage() {
       const item: InventoryItem = {
         id: editItem?.id || generateId(),
         name: formName.trim(),
-        category: formCat,
+        category: formCat.trim(),
         size: formSize || null,
         qty: formQty,
         cost: formCost,
@@ -182,6 +227,9 @@ export default function InventoryPage() {
           <button onClick={() => openModal()} className="inline-flex items-center gap-1.5 py-2 px-4 border-none rounded-lg text-sm font-semibold cursor-pointer bg-accent text-white hover:bg-accent2 transition-colors">
             + Add Item
           </button>
+          <button onClick={() => { setNewCatName(""); setCatModalOpen(true); }} className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background transition-colors">
+            ⚙ Manage Categories
+          </button>
           <button onClick={exportCSV} className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background transition-colors">
             ⬇ Export CSV
           </button>
@@ -192,7 +240,7 @@ export default function InventoryPage() {
       <div className="flex gap-2 flex-wrap mb-3.5">
         <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)} className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card">
           <option value="">All Categories</option>
-          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          {allCategories.map((c) => <option key={c}>{c}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card">
           <option value="">All Statuses</option>
@@ -225,7 +273,6 @@ export default function InventoryPage() {
                 <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Total</th>
                 <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Available</th>
                 <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Status</th>
-                <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Cost/Piece</th>
                 <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border"></th>
               </tr>
             </thead>
@@ -255,13 +302,13 @@ export default function InventoryPage() {
                         </div>
                       )}
                       {item.images?.length > 0 && (
-                        <div className="flex gap-1.5 flex-wrap mt-1">
+                        <div className="flex gap-2 flex-wrap mt-2">
                           {item.images.slice(0, 3).map((src, idx) => (
                             <img
                               key={idx}
                               src={src}
                               alt=""
-                              className="w-10 h-10 object-cover rounded border border-border cursor-pointer"
+                              className="w-[122px] h-[122px] object-cover rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
                               onClick={() => { setLbImages(item.images); setLbIndex(idx); setLbOpen(true); }}
                             />
                           ))}
@@ -276,7 +323,6 @@ export default function InventoryPage() {
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">
                       <span className={`inline-block py-0.5 px-2 rounded-full text-xs font-semibold ${statusBadgeClass(st)}`}>{st}</span>
                     </td>
-                    <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{formatMoney(item.cost)}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">
                       <button onClick={() => openModal(item)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background mr-1">Edit</button>
                       <button onClick={() => handleDelete(item.id)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-red text-white border-none cursor-pointer hover:bg-[#b91c1c]">Del</button>
@@ -305,10 +351,16 @@ export default function InventoryPage() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-muted">Category *</label>
-                  <select value={formCat} onChange={(e) => { setFormCat(e.target.value); setFormSize(""); }} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent">
-                    <option value="">Select...</option>
-                    {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                  </select>
+                  <input
+                    list="inventory-categories"
+                    value={formCat}
+                    onChange={(e) => { setFormCat(e.target.value); setFormSize(""); }}
+                    placeholder="Pick existing or type new..."
+                    className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                  />
+                  <datalist id="inventory-categories">
+                    {allCategories.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
                 {SIZES[formCat] && (
                   <div className="flex flex-col gap-1">
@@ -366,6 +418,67 @@ export default function InventoryPage() {
               <button onClick={handleSave} disabled={saving} className="py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-accent text-white border-none hover:bg-accent2 disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Categories Modal */}
+      {catModalOpen && (
+        <div className="fixed inset-0 bg-black/45 z-[300] flex justify-center items-start p-7 overflow-y-auto" onClick={(e) => { if (e.target === e.currentTarget) setCatModalOpen(false); }}>
+          <div className="bg-card rounded-xl w-full max-w-[500px] shadow-2xl animate-[slideUp_0.25s_ease]">
+            <div className="flex justify-between items-center py-4 px-6 border-b border-border">
+              <h3 className="text-lg font-semibold">Manage Categories</h3>
+              <button onClick={() => setCatModalOpen(false)} className="bg-transparent border-none text-xl cursor-pointer text-muted">&times;</button>
+            </div>
+            <div className="p-5 px-6">
+              <div className="flex gap-2 mb-4">
+                <input
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddCategory(); }}
+                  placeholder="New category name (e.g. Wall Art)"
+                  className="flex-1 py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                />
+                <button onClick={handleAddCategory} disabled={catSaving || !newCatName.trim()} className="py-2 px-3 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer hover:bg-accent2 disabled:opacity-50">
+                  {catSaving ? "..." : "+ Add"}
+                </button>
+              </div>
+              {dbCategories.length === 0 && allCategories.length > 0 && (
+                <p className="text-xs text-muted mb-3 italic">
+                  Categories table not initialized yet. The list below shows the current built-in defaults plus any in-use categories. Adding a new category will create the table if needed.
+                </p>
+              )}
+              {allCategories.length === 0 ? (
+                <p className="text-sm text-muted text-center py-6">No categories yet. Add one above.</p>
+              ) : (
+                <div className="max-h-[50vh] overflow-y-auto">
+                  {allCategories.map((c) => {
+                    const inUse = countItemsInCategory(c, inventory);
+                    const isDb = dbCategories.includes(c);
+                    return (
+                      <div key={c} className="flex items-center justify-between py-2 px-2 border-b border-border last:border-b-0 hover:bg-background">
+                        <div>
+                          <span className="text-sm font-semibold">{c}</span>
+                          {inUse > 0 && <span className="ml-2 text-xs text-muted">({inUse} item{inUse > 1 ? "s" : ""})</span>}
+                          {!isDb && dbCategories.length > 0 && <span className="ml-2 text-[.65rem] text-muted italic">in-use only</span>}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteCategory(c)}
+                          disabled={inUse > 0}
+                          title={inUse > 0 ? `Used by ${inUse} item${inUse > 1 ? "s" : ""}` : "Delete category"}
+                          className="py-1 px-2.5 text-xs font-semibold rounded bg-red text-white border-none cursor-pointer hover:bg-[#b91c1c] disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          Del
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="py-3.5 px-6 border-t border-border flex justify-end">
+              <button onClick={() => setCatModalOpen(false)} className="py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background">Close</button>
             </div>
           </div>
         </div>

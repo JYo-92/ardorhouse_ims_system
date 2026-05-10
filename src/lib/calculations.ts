@@ -1,4 +1,34 @@
 import type { Project, InventoryItem, ProjectCalc, LaborEntry } from "./types";
+import { CATEGORIES } from "./constants";
+
+export function getAllCategories(
+  inventory: InventoryItem[],
+  dbCategories: string[] = []
+): string[] {
+  const set = new Set<string>();
+  // If DB categories are loaded, they are the source of truth.
+  // Otherwise fall back to built-in defaults so dropdowns aren't empty
+  // before the user runs the categories migration.
+  if (dbCategories.length > 0) {
+    dbCategories.forEach((c) => set.add(c));
+  } else {
+    CATEGORIES.forEach((c) => set.add(c));
+  }
+  // Always include any category currently used by an item, so existing
+  // inventory never becomes uncategorized in dropdowns.
+  inventory.forEach((i) => {
+    const c = (i.category || "").trim();
+    if (c) set.add(c);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+export function countItemsInCategory(
+  category: string,
+  inventory: InventoryItem[]
+): number {
+  return inventory.filter((i) => i.category === category).length;
+}
 
 export function getLaborHours(l: LaborEntry): number {
   if (l.start_time && l.end_time) {
