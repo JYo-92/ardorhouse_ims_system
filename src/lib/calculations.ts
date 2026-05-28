@@ -69,6 +69,8 @@ export function getStaged(
 ): number {
   let staged = 0;
   projects.forEach((p) => {
+    // Completed projects release their inventory back to the warehouse.
+    if (p.status === "Completed") return;
     if (p.rooms) {
       Object.values(p.rooms).forEach((rm) => {
         (rm || []).forEach((a) => {
@@ -86,6 +88,8 @@ export function getStagedByProject(
 ): { projectId: string; projectName: string; qty: number }[] {
   const out: { projectId: string; projectName: string; qty: number }[] = [];
   projects.forEach((p) => {
+    // Completed projects don't keep inventory locked.
+    if (p.status === "Completed") return;
     if (!p.rooms) return;
     let qty = 0;
     Object.values(p.rooms).forEach((rm) => {
