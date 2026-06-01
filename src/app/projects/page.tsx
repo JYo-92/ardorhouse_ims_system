@@ -69,8 +69,10 @@ export default function ProjectsPage() {
   function handleStartChange(val: string) {
     setFStart(val);
     if (val && !fEnd) {
-      const d = new Date(val);
-      d.setDate(d.getDate() + 90);
+      // Parse as UTC and do the arithmetic in UTC so DST and local
+      // timezone shifts can't move the date by ±1 day.
+      const d = new Date(val + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 90);
       setFEnd(d.toISOString().slice(0, 10));
     }
   }
