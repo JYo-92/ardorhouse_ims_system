@@ -1,6 +1,7 @@
 "use client";
 
-import { useProjects, saveProject } from "@/hooks/use-projects";
+import { useProjects, saveProjectInfo } from "@/hooks/use-projects";
+import { useProfile } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
 import { formatMoney, formatPercent, projCalc, getAvail, getStaged, daysUntilEnd } from "@/lib/calculations";
@@ -8,9 +9,13 @@ import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const { projects, mutate } = useProjects();
+  const { isSuperAdmin } = useProfile();
   const { inventory } = useInventory();
   const { toast } = useToast();
   const router = useRouter();
+
+  // Money is shown to super admins and to contract owners (their own rows).
+  const canSeeMoney = isSuperAdmin || projects.some((p) => p.canSeeFinancials);
 
   const scheduled = projects.filter((p) => p.status === "Scheduled");
   const active = projects.filter((p) => p.status === "Active");
@@ -46,7 +51,7 @@ export default function DashboardPage() {
   async function quickStatus(pid: string, newStatus: string) {
     const p = projects.find((x) => x.id === pid);
     if (!p) return;
-    await saveProject({ ...p, status: newStatus });
+    await saveProjectInfo({ ...p, status: newStatus });
     await mutate();
     toast(`${p.name} → ${newStatus}`);
   }
@@ -56,7 +61,11 @@ export default function DashboardPage() {
     return <span className={`inline-block py-0.5 px-2 rounded-full text-xs font-semibold ${cls}`}>{formatPercent(m)}</span>;
   };
 
-  const ProjectTable = ({ items, showProfit, actionLabel, actionStatus, showAction = true }: { items: typeof projects; showProfit: boolean; actionLabel?: string; actionStatus?: string; showAction?: boolean }) => (
+  const ProjectTable = ({ items, showProfit, actionLabel, actionStatus, showAction = true }: { items: typeof projects; showProfit: boolean; actionLabel?: string; actionStatus?: string; showAction?: boolean }) => {
+    const moneyCols = canSeeMoney; // Invoice column
+    const profitCols = canSeeMoney && showProfit; // Profit + Margin columns
+    const baseCols = 3 + (moneyCols ? 1 : 0) + (profitCols ? 2 : 0) + (showAction ? 1 : 0);
+    return (
     <div className="bg-card rounded-lg shadow-sm overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
@@ -64,18 +73,19 @@ export default function DashboardPage() {
             <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Project</th>
             <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Business Unit</th>
             <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">{showProfit ? "End Date" : "Start Date"}</th>
-            <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Invoice</th>
-            {showProfit && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Profit</th>}
-            {showProfit && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Margin</th>}
+            {moneyCols && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Invoice</th>}
+            {profitCols && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Profit</th>}
+            {profitCols && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Margin</th>}
             {showAction && <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border"></th>}
           </tr>
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td colSpan={showProfit ? (showAction ? 7 : 6) : (showAction ? 5 : 4)} className="text-center text-muted py-4">No projects</td></tr>
+            <tr><td colSpan={baseCols} className="text-center text-muted py-4">No projects</td></tr>
           ) : (
             items.map((p) => {
               const c = projCalc(p, inventory);
+              const canSee = isSuperAdmin || p.canSeeFinancials;
               return (
                 <tr key={p.id} className="hover:bg-[#f9fafb] cursor-pointer" onClick={() => router.push(`/projects/${p.id}`)}>
                   <td className="py-2.5 px-3 border-b border-border">
@@ -84,9 +94,9 @@ export default function DashboardPage() {
                   </td>
                   <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.bu}</td>
                   <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{showProfit ? (p.end_date || "—") : (p.start_date || "—")}</td>
-                  <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{formatMoney(c.invoice)}</td>
-                  {showProfit && <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${c.profit >= 0 ? "text-green" : "text-red"}`}>{formatMoney(c.profit)}</td>}
-                  {showProfit && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{marginBadge(c.margin)}</td>}
+                  {moneyCols && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? formatMoney(c.invoice) : "—"}</td>}
+                  {profitCols && <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${canSee && c.profit < 0 ? "text-red" : canSee ? "text-green" : ""}`}>{canSee ? formatMoney(c.profit) : "—"}</td>}
+                  {profitCols && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? marginBadge(c.margin) : "—"}</td>}
                   {showAction && actionLabel && actionStatus && (
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => quickStatus(p.id, actionStatus)} className={`py-1 px-2.5 text-xs font-semibold rounded-lg border-none cursor-pointer text-white ${actionStatus === "Active" || actionStatus === "Completed" ? "bg-green hover:bg-[#15803d]" : "bg-[#fef9c3] !text-[#ca8a04]"}`}>
@@ -101,7 +111,8 @@ export default function DashboardPage() {
         </tbody>
       </table>
     </div>
-  );
+    );
+  };
 
   return (
     <div>
@@ -115,9 +126,9 @@ export default function DashboardPage() {
         <Card label="Total Inventory" value={totalItems} />
         <Card label="Items Staged" value={stagedCount} />
         <Card label="Shortages" value={shortages} color={shortages > 0 ? "text-red" : undefined} />
-        <Card label="Total Revenue" value={formatMoney(totalRev)} />
-        <Card label="Total Profit" value={formatMoney(totalProfit)} color={totalProfit >= 0 ? "text-green" : "text-red"} />
-        <Card label="Avg Margin" value={margins.length ? formatPercent(avgMargin) : "—"} color={mc} />
+        {canSeeMoney && <Card label="Total Revenue" value={formatMoney(totalRev)} />}
+        {canSeeMoney && <Card label="Total Profit" value={formatMoney(totalProfit)} color={totalProfit >= 0 ? "text-green" : "text-red"} />}
+        {canSeeMoney && <Card label="Avg Margin" value={margins.length ? formatPercent(avgMargin) : "—"} color={mc} />}
       </div>
 
       {alerts.length > 0 && (

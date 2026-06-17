@@ -41,6 +41,8 @@ export const ROOMS = [
 
 export const LABOR_ROLES = ["Stager", "Mover"] as const;
 
+export const LABOR_TYPES = ["Staging", "De-staging"] as const;
+
 export const BUSINESS_UNITS = [
   "Staging",
   "Interior Design",

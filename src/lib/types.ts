@@ -1,3 +1,14 @@
+export type Role = "super_admin" | "manager" | "user";
+
+export interface Profile {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: Role;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -23,13 +34,30 @@ export interface Project {
   end_date: string | null;
   notes: string | null;
   status: string;
+  rooms: Record<string, RoomAssignment[]>;
+  // --- Financial fields live in project_financials (RLS-protected). They are
+  // populated only when the current user is a super admin or the project's
+  // contract owner; otherwise they are zero/empty and canSeeFinancials=false. ---
+  canSeeFinancials: boolean;
   invoice: number;
   deposit: number;
-  rooms: Record<string, RoomAssignment[]>;
+  contract_value: number;
+  contract_owner_id: string | null;
   labor: LaborEntry[];
   misc_lines: MiscLine[];
   created_at?: string;
   updated_at?: string;
+}
+
+/** Shape of a row in the project_financials table. */
+export interface ProjectFinancials {
+  project_id: string;
+  invoice: number;
+  deposit: number;
+  contract_value: number;
+  labor: LaborEntry[];
+  misc_lines: MiscLine[];
+  contract_owner_id: string | null;
 }
 
 export interface RoomAssignment {
@@ -37,9 +65,12 @@ export interface RoomAssignment {
   qty: number;
 }
 
+export type LaborType = "Staging" | "De-staging";
+
 export interface LaborEntry {
   name?: string;
   role: string;
+  type?: LaborType;
   date?: string;
   start_time?: string;
   end_time?: string;
@@ -69,6 +100,8 @@ export interface PayrollEntry {
 
 export interface ProjectCalc {
   totalLabor: number;
+  laborStaging: number;
+  laborDestaging: number;
   totalMisc: number;
   totalInvCost: number;
   totalCost: number;

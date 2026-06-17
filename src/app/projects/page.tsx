@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useProjects, saveProject, deleteProject } from "@/hooks/use-projects";
+import { useProjects, saveProjectInfo, createFinancials, updateFinancials, deleteProject } from "@/hooks/use-projects";
+import { useProfile, useProfiles } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
 import { BUSINESS_UNITS, PROJECT_STATUSES } from "@/lib/constants";
@@ -11,9 +12,15 @@ import { useRouter } from "next/navigation";
 
 export default function ProjectsPage() {
   const { projects, mutate } = useProjects();
+  const { isSuperAdmin } = useProfile();
+  const { profiles } = useProfiles(isSuperAdmin);
   const { inventory } = useInventory();
   const { toast } = useToast();
   const router = useRouter();
+
+  // Money columns appear only when the viewer can see at least one project's
+  // financials (super admin = all; user = projects they own).
+  const showMoney = isSuperAdmin || projects.some((p) => p.canSeeFinancials);
 
   const [filterBU, setFilterBU] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -33,6 +40,8 @@ export default function ProjectsPage() {
   const [fNotes, setFNotes] = useState("");
   const [fInvoice, setFInvoice] = useState(0);
   const [fDeposit, setFDeposit] = useState(0);
+  const [fContract, setFContract] = useState(0);
+  const [fOwner, setFOwner] = useState("");
 
   const filtered = projects.filter((p) => {
     if (filterBU && p.bu !== filterBU) return false;
@@ -57,11 +66,14 @@ export default function ProjectsPage() {
       setFNotes(p.notes || "");
       setFInvoice(p.invoice);
       setFDeposit(p.deposit);
+      setFContract(p.contract_value || 0);
+      setFOwner(p.contract_owner_id || "");
     } else {
       setEditProj(null);
       setFName(""); setFAddr(""); setFBU(""); setFAgent("");
       setFStatus("Scheduled"); setFStart(""); setFEnd("");
       setFNotes(""); setFInvoice(0); setFDeposit(0);
+      setFContract(0); setFOwner("");
     }
     setModalOpen(true);
   }
@@ -82,10 +94,21 @@ export default function ProjectsPage() {
     if (!fBU) { toast("Business unit is required", "error"); return; }
     setSaving(true);
     try {
+      const base = { name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null };
       const p: Project = editProj
-        ? { ...editProj, name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, invoice: fInvoice, deposit: fDeposit }
-        : { id: generateId(), name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, invoice: fInvoice, deposit: fDeposit, rooms: {}, labor: [], misc_lines: [] };
-      await saveProject(p);
+        ? { ...editProj, ...base }
+        : { id: generateId(), ...base, rooms: {}, canSeeFinancials: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
+      // Operational data (any authenticated user).
+      await saveProjectInfo(p);
+      // Financials (super admins only here — assigns owner + revenue).
+      if (isSuperAdmin) {
+        const finPatch = { invoice: fInvoice, deposit: fDeposit, contract_value: fContract, contract_owner_id: fOwner || null };
+        if (editProj?.canSeeFinancials) {
+          await updateFinancials(p.id, finPatch);
+        } else {
+          await createFinancials({ project_id: p.id, ...finPatch, labor: editProj?.labor ?? [], misc_lines: editProj?.misc_lines ?? [] });
+        }
+      }
       await mutate();
       setModalOpen(false);
       toast(editProj ? "Project updated" : "Project created");
@@ -151,7 +174,7 @@ export default function ProjectsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Project", "Business Unit", "Start", "End", "Invoice", "Profit", "Margin", "Status", ""].map((h, i) => (
+                {["Project", "Business Unit", "Start", "End", ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
                   <th key={i} className={`bg-background py-2.5 px-3 font-semibold text-xs uppercase tracking-wider text-muted border-b border-border whitespace-nowrap ${["Invoice", "Profit", "Margin"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
                 ))}
               </tr>
@@ -168,9 +191,16 @@ export default function ProjectsPage() {
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.bu}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.start_date || "—"}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.end_date || "—"}</td>
-                    <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{formatMoney(c.invoice)}</td>
-                    <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${c.profit >= 0 ? "text-green" : "text-red"}`}>{formatMoney(c.profit)}</td>
-                    <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{marginBadge(c.margin)}</td>
+                    {showMoney && (() => {
+                      const canSee = isSuperAdmin || p.canSeeFinancials;
+                      return (
+                        <>
+                          <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? formatMoney(c.invoice) : "—"}</td>
+                          <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${canSee && c.profit < 0 ? "text-red" : canSee ? "text-green" : ""}`}>{canSee ? formatMoney(c.profit) : "—"}</td>
+                          <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? marginBadge(c.margin) : "—"}</td>
+                        </>
+                      );
+                    })()}
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{statusBadge(p.status)}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => openModal(p)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background mr-1">Edit</button>
@@ -207,14 +237,18 @@ export default function ProjectsPage() {
                   <div className="flex flex-col gap-1 col-span-2 max-sm:col-span-1"><label className="text-xs font-semibold text-muted">Notes</label><textarea rows={2} value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm resize-y min-h-[50px] focus:outline-none focus:border-accent" /></div>
                 </div>
               </div>
-              {/* Revenue */}
-              <div className="mb-4">
-                <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">Revenue</h4>
-                <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Invoice Amount ($)</label><input type="number" min={0} step={0.01} value={fInvoice} onChange={(e) => setFInvoice(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
-                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Deposit Collected ($)</label><input type="number" min={0} step={0.01} value={fDeposit} onChange={(e) => setFDeposit(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+              {/* Revenue & Contract — super admins only */}
+              {isSuperAdmin && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">Revenue &amp; Contract</h4>
+                  <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Contract Owner</label><select value={fOwner} onChange={(e) => setFOwner(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Ardor House (unassigned)</option>{profiles.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}</select></div>
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Total Contract Value ($)</label><input type="number" min={0} step={0.01} value={fContract} onChange={(e) => setFContract(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Invoice Amount ($)</label><input type="number" min={0} step={0.01} value={fInvoice} onChange={(e) => setFInvoice(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Deposit Collected ($)</label><input type="number" min={0} step={0.01} value={fDeposit} onChange={(e) => setFDeposit(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             <div className="py-3.5 px-6 border-t border-border flex justify-end gap-2">
               <button onClick={() => setModalOpen(false)} className="py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background">Cancel</button>

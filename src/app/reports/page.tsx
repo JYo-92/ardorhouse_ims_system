@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useProjects } from "@/hooks/use-projects";
+import { useProfile } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
 import { formatMoney, formatPercent, projCalc, getAvail, getStaged } from "@/lib/calculations";
@@ -20,6 +21,7 @@ const REPORT_OPTIONS: { value: ReportType; label: string }[] = [
 
 export default function ReportsPage() {
   const { projects } = useProjects();
+  const { isSuperAdmin, isLoading: profileLoading } = useProfile();
   const { inventory } = useInventory();
   const { toast } = useToast();
   const [reportType, setReportType] = useState<ReportType>("pnl");
@@ -123,6 +125,15 @@ export default function ReportsPage() {
 
   const isMoneyCol = (h: string) => ["Invoice", "Total Cost", "Gross Profit"].includes(h);
   const isRightCol = (h: string) => ["Invoice", "Total Cost", "Gross Profit", "Margin %", "Qty", "Times Assigned", "Qty Staged", "Available", "Total", "Rooms", "Pieces"].includes(h);
+
+  if (!profileLoading && !isSuperAdmin) {
+    return (
+      <div className="py-16 text-center text-muted">
+        <div className="text-3xl">🔒</div>
+        <p className="mt-2 text-sm">Reports are available to administrators only.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
