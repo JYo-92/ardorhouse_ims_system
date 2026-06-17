@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useProjects } from "@/hooks/use-projects";
+import { useProfile } from "@/hooks/use-profile";
 import { formatMoney, getLaborHours, getLaborCost } from "@/lib/calculations";
 import { DAY_LABELS } from "@/lib/constants";
 
@@ -31,6 +32,7 @@ type Row = {
 
 export default function PayrollPage() {
   const { projects } = useProjects();
+  const { canSeePayroll, isLoading: profileLoading } = useProfile();
   const [week, setWeek] = useState(getMonday());
 
   // Week boundary as local-midnight Date and YMD strings
@@ -74,6 +76,15 @@ export default function PayrollPage() {
     const d = new Date(week + "T00:00:00");
     d.setDate(d.getDate() + deltaDays);
     setWeek(fmtYMD(d));
+  }
+
+  if (!profileLoading && !canSeePayroll) {
+    return (
+      <div className="py-16 text-center text-muted">
+        <div className="text-3xl">🔒</div>
+        <p className="mt-2 text-sm">Payroll is available to managers and administrators only.</p>
+      </div>
+    );
   }
 
   return (

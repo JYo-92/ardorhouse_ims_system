@@ -128,12 +128,18 @@ export function projCalc(
   inventory: InventoryItem[]
 ): ProjectCalc {
   let totalLabor = 0;
+  let laborStaging = 0;
+  let laborDestaging = 0;
   let totalMisc = 0;
   let totalInvCost = 0;
   let pieces = 0;
 
   (p.labor || []).forEach((l) => {
-    totalLabor += getLaborCost(l);
+    const cost = getLaborCost(l);
+    totalLabor += cost;
+    // Un-typed (legacy) labor counts as Staging so totals stay complete.
+    if (l.type === "De-staging") laborDestaging += cost;
+    else laborStaging += cost;
   });
 
   (p.misc_lines || []).forEach((m) => {
@@ -160,6 +166,8 @@ export function projCalc(
 
   return {
     totalLabor,
+    laborStaging,
+    laborDestaging,
     totalMisc,
     totalInvCost,
     totalCost,

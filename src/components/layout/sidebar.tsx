@@ -3,24 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useProfile } from "@/hooks/use-profile";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { Role } from "@/lib/types";
 
-const NAV_ITEMS = [
+// roles undefined = visible to everyone; otherwise only the listed roles.
+type NavItem = { href: string; label: string; icon: string; roles?: Role[] };
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: "◼" },
   { href: "/inventory", label: "Inventory", icon: "◼" },
   { href: "/projects", label: "Projects", icon: "◼" },
-  { href: "/reports", label: "Reports", icon: "◼" },
+  { href: "/reports", label: "Reports", icon: "◼", roles: ["super_admin"] },
 ];
 
-const SECONDARY_ITEMS = [
-  { href: "/payroll", label: "Weekly Payroll", icon: "◼" },
+const SECONDARY_ITEMS: NavItem[] = [
+  { href: "/payroll", label: "Weekly Payroll", icon: "◼", roles: ["super_admin", "manager"] },
+  { href: "/admin", label: "Users & Roles", icon: "◼", roles: ["super_admin"] },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { role } = useProfile();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const visible = (items: NavItem[]) => items.filter((i) => !i.roles || (role != null && i.roles.includes(role)));
+  const navItems = visible(NAV_ITEMS);
+  const secondaryItems = visible(SECONDARY_ITEMS);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -64,7 +75,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -80,9 +91,9 @@ export function Sidebar() {
             </Link>
           ))}
 
-          <div className="h-px bg-white/[.08] my-3" />
+          {secondaryItems.length > 0 && <div className="h-px bg-white/[.08] my-3" />}
 
-          {SECONDARY_ITEMS.map((item) => (
+          {secondaryItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
