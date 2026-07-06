@@ -6,7 +6,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { useCategories, addCategory, deleteCategory } from "@/hooks/use-categories";
 import { useToast } from "@/components/layout/toast-provider";
 import { SIZES } from "@/lib/constants";
-import { generateId, getAvail, getItemStatus, getStagedByProject, getAllCategories, countItemsInCategory } from "@/lib/calculations";
+import { generateId, getAvail, getStaged, getItemStatus, getStagedByProject, getAllCategories, countItemsInCategory } from "@/lib/calculations";
 import { downloadCSV } from "@/lib/csv";
 import type { InventoryItem } from "@/lib/types";
 import Link from "next/link";
@@ -89,8 +89,19 @@ export default function InventoryPage() {
 
   const filtered = inventory.filter((i) => {
     if (filterCat && i.category !== filterCat) return false;
-    const st = getItemStatus(i, projects);
-    if (filterStatus && !st.includes(filterStatus)) return false;
+    if (filterStatus) {
+      // An item can be in more than one state at once: some units in the
+      // warehouse AND some out on a job. Match on the units that apply so a
+      // partially-staged item still shows under "In Warehouse".
+      const staged = getStaged(i.id, projects);
+      const avail = i.qty - staged;
+      const applicable = new Set<string>();
+      if (avail > 0) applicable.add("In Warehouse");
+      if (staged > 0) applicable.add("Out for Staging");
+      if (i.status === "Reserved") applicable.add("Reserved");
+      if (i.status === "Scheduled for De-staging") applicable.add("Scheduled for De-staging");
+      if (!applicable.has(filterStatus)) return false;
+    }
     if (filterSize && i.size !== filterSize) return false;
     if (search) {
       const q = search.toLowerCase();
