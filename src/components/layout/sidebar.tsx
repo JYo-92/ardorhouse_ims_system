@@ -19,8 +19,9 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const SECONDARY_ITEMS: NavItem[] = [
+  { href: "/timesheet", label: "Time Clock", icon: "◼", roles: ["super_admin", "manager"] },
   { href: "/payroll", label: "Weekly Payroll", icon: "◼", roles: ["super_admin", "manager"] },
-  { href: "/admin", label: "Users & Roles", icon: "◼", roles: ["super_admin"] },
+  { href: "/admin", label: "Settings", icon: "◼", roles: ["super_admin"] },
 ];
 
 export function Sidebar() {
