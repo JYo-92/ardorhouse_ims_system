@@ -14,7 +14,7 @@ async function fetchMyProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role")
+    .select("id, email, full_name, job_title, role")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -49,7 +49,7 @@ async function fetchProfiles(): Promise<Profile[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role")
+    .select("id, email, full_name, job_title, role")
     .order("email", { ascending: true });
   if (error) throw error;
   return (data || []) as Profile[];

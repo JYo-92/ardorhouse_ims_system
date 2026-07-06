@@ -1,9 +1,20 @@
-export type Role = "super_admin" | "manager" | "user";
+export type Role = "super_admin" | "manager" | "user" | "installer";
+
+export interface TimeEntry {
+  id: string;
+  user_id: string;
+  project_id: string;
+  job_type: LaborType;
+  clock_in: string;
+  clock_out: string | null;
+  created_at?: string;
+}
 
 export interface Profile {
   id: string;
   email: string | null;
   full_name: string | null;
+  job_title?: string | null;
   role: Role;
   created_at?: string;
   updated_at?: string;
