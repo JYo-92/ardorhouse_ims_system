@@ -18,10 +18,9 @@ export default function LoginPage() {
       setError("Please enter email and password.");
       return;
     }
-    if (!email.endsWith("@ardorhouse.com")) {
-      setError("You must use an Ardor House email to access this platform.");
-      return;
-    }
+    // Access is controlled by invitation + roles (accounts are created only via
+    // the admin invite flow), so any invited email — including personal ones —
+    // may sign in. Non-invited emails simply have no account.
     setLoading(true);
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithPassword({
