@@ -23,6 +23,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<Tab>("rooms");
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignRoom, setAssignRoom] = useState("");
   const [assignSelections, setAssignSelections] = useState<Record<string, number>>({});
@@ -261,7 +262,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           </button>
                           <div className="w-full aspect-square bg-background flex items-center justify-center">
                             {thumb ? (
-                              <img src={thumb} alt={it?.name || ""} className="w-full h-full object-cover" />
+                              <img src={thumb} alt={it?.name || ""} onClick={() => setLightboxImg(thumb)} title="Click to enlarge" className="w-full h-full object-cover cursor-zoom-in" />
                             ) : (
                               <span className="text-3xl text-muted">🛋️</span>
                             )}
@@ -405,6 +406,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <div className="flex justify-between py-1 text-sm"><span>Labor %</span><span className="font-semibold">{formatPercent(calc.laborPct)}</span></div>
           <div className="flex justify-between py-1 text-sm"><span>Pieces</span><span className="font-semibold">{calc.pieces}</span></div>
           <div className="flex justify-between py-1 text-sm"><span>Cost/Piece</span><span className="font-semibold">{formatMoney(calc.cpp)}</span></div>
+        </div>
+      )}
+
+      {/* Furniture image lightbox — click a photo to enlarge, click anywhere to close */}
+      {lightboxImg && (
+        <div
+          className="fixed inset-0 bg-black/80 z-[400] flex items-center justify-center p-6 cursor-zoom-out"
+          onClick={() => setLightboxImg(null)}
+        >
+          <img src={lightboxImg} alt="" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
+          <button
+            onClick={() => setLightboxImg(null)}
+            className="absolute top-4 right-5 text-white/80 hover:text-white text-4xl leading-none bg-transparent border-none cursor-pointer"
+            title="Close"
+          >
+            &times;
+          </button>
         </div>
       )}
 

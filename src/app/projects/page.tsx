@@ -22,6 +22,8 @@ export default function ProjectsPage() {
   // financials (super admin = all; user = projects they own).
   const showMoney = isSuperAdmin || projects.some((p) => p.canSeeFinancials);
 
+  const activeCount = projects.filter((p) => p.status === "Active").length;
+
   const [filterBU, setFilterBU] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [search, setSearch] = useState("");
@@ -144,6 +146,19 @@ export default function ProjectsPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold mb-5">Projects</h1>
+
+      {/* Active projects highlight — click to filter to active, click again to clear */}
+      <button
+        onClick={() => setFilterStatus(filterStatus === "Active" ? "" : "Active")}
+        title="Click to show only active projects"
+        className={`flex items-center gap-4 mb-5 py-3.5 px-5 rounded-xl border text-left cursor-pointer transition-colors ${filterStatus === "Active" ? "bg-green border-green text-white" : "bg-[#dcfce7] border-[#bbf7d0] hover:bg-[#c9f7d5]"}`}
+      >
+        <span className={`text-4xl font-bold leading-none ${filterStatus === "Active" ? "text-white" : "text-[#16a34a]"}`}>{activeCount}</span>
+        <span className="leading-tight">
+          <span className={`block text-sm font-semibold ${filterStatus === "Active" ? "text-white" : "text-[#166534]"}`}>Active Project{activeCount === 1 ? "" : "s"}</span>
+          <span className={`block text-xs ${filterStatus === "Active" ? "text-white/80" : "text-[#166534]/70"}`}>{filterStatus === "Active" ? "Showing active — click to clear" : "Click to filter"}</span>
+        </span>
+      </button>
 
       <div className="flex justify-between items-center flex-wrap gap-2.5 mb-4">
         <h2 className="text-base font-semibold">All Projects</h2>
