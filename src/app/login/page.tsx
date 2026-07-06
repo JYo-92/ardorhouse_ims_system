@@ -8,8 +8,30 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const router = useRouter();
+
+  const handleForgot = async () => {
+    setError("");
+    setNotice("");
+    if (!email) {
+      setError("Enter your email above first, then tap “Forgot password”.");
+      return;
+    }
+    setSending(true);
+    const supabase = createClient();
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setSending(false);
+    if (resetError) {
+      setError(resetError.message);
+      return;
+    }
+    setNotice(`If an account exists for ${email}, a reset link is on its way — check your email.`);
+  };
 
   const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -71,8 +93,20 @@ export default function LoginPage() {
           {loading ? "Signing in..." : "Sign In"}
         </button>
 
+        <button
+          type="button"
+          onClick={handleForgot}
+          disabled={sending}
+          className="block mx-auto mt-4 text-white/50 text-xs bg-transparent border-none cursor-pointer hover:text-white/80 disabled:opacity-50"
+        >
+          {sending ? "Sending reset link…" : "Forgot password?"}
+        </button>
+
         {error && (
           <div className="text-[#f87171] text-sm mt-3">{error}</div>
+        )}
+        {notice && (
+          <div className="text-[#86efac] text-sm mt-3">{notice}</div>
         )}
 
         <div className="mt-8 text-[.65rem] text-white/20">
