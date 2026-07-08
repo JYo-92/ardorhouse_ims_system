@@ -44,6 +44,27 @@ export default function AdminPage() {
     }
   }
 
+  async function resetPassword(id: string, name: string) {
+    const pw = window.prompt(
+      `Set a temporary password for ${name}.\nThey can change it later via "Forgot password".`,
+      "Ardor2026!"
+    );
+    if (pw === null) return; // cancelled
+    if (pw.length < 8) { toast("Password must be at least 8 characters", "error"); return; }
+    try {
+      const res = await fetch("/api/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: id, password: pw }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to set password");
+      toast(`Password set. Share it with ${name}: ${pw}`);
+    } catch (err) {
+      toast("Error: " + (err as Error).message, "error");
+    }
+  }
+
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!iEmail.trim()) { toast("Email is required", "error"); return; }
@@ -112,8 +133,8 @@ export default function AdminPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Name", "Email", "Access"].map((h) => (
-                  <th key={h} className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">{h}</th>
+                {["Name", "Email", "Access", ""].map((h, i) => (
+                  <th key={i} className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -132,6 +153,14 @@ export default function AdminPage() {
                     >
                       {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
+                  </td>
+                  <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">
+                    <button
+                      onClick={() => resetPassword(u.id, u.full_name || u.email || "this user")}
+                      className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background"
+                    >
+                      Reset Password
+                    </button>
                   </td>
                 </tr>
               ))}
