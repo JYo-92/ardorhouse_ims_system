@@ -79,13 +79,14 @@ export interface RoomAssignment {
 export type LaborType = "Staging" | "De-staging";
 
 export interface LaborEntry {
+  id?: string;
   name?: string;
   role: string;
   type?: LaborType;
   date?: string;
   start_time?: string;
   end_time?: string;
-  rate: number;
+  rate?: number;
   hours?: number;
 }
 

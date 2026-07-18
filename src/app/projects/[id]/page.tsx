@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect } from "react";
 import { useProjects, saveProjectInfo, updateFinancials, createFinancials } from "@/hooks/use-projects";
+import { getProjectLabor, setProjectLabor } from "@/hooks/use-project-labor";
 import { useProfile, useProfiles } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/components/layout/toast-provider";
 import { LABOR_ROLES, LABOR_TYPES, PROJECT_STATUSES } from "@/lib/constants";
-import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost, getAllCategories } from "@/lib/calculations";
+import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost, getAllCategories, generateId } from "@/lib/calculations";
 import type { Project, LaborEntry, MiscLine } from "@/lib/types";
 import Link from "next/link";
 
@@ -16,11 +17,20 @@ type Tab = "rooms" | "labor" | "misc" | "pnl";
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { projects, mutate } = useProjects();
-  const { isSuperAdmin } = useProfile();
+  const { isSuperAdmin, role } = useProfile();
   const { profiles } = useProfiles(isSuperAdmin);
   const { inventory } = useInventory();
   const { categories: dbCategories } = useCategories();
   const { toast } = useToast();
+  const isManager = role === "manager";
+
+  // Managers can log labor HOURS (no pay) via a server function that hides pay.
+  const [mgrLabor, setMgrLabor] = useState<LaborEntry[] | null>(null);
+  useEffect(() => {
+    if (isManager && !isSuperAdmin) {
+      getProjectLabor(id).then(setMgrLabor).catch(() => setMgrLabor([]));
+    }
+  }, [id, isManager, isSuperAdmin]);
 
   const [activeTab, setActiveTab] = useState<Tab>("rooms");
   const [lightboxImg, setLightboxImg] = useState<string | null>(null);
@@ -45,6 +55,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const roomKeys = Object.keys(project.rooms || {});
   // Money is visible to super admins and the assigned contract owner only.
   const canSeeMoney = isSuperAdmin || project.canSeeFinancials;
+
+  // Managers (without money access) can still add/edit labor HOURS — no pay,
+  // no revenue. Their labor reads/writes go through the hours-only functions.
+  const managerMode = isManager && !canSeeMoney;
+  const canEditLabor = canSeeMoney || managerMode;
+  const laborList: LaborEntry[] = canSeeMoney ? (project.labor || []) : (mgrLabor || []);
+
+  async function saveLabor(newLabor: LaborEntry[]) {
+    if (canSeeMoney) {
+      await saveFin({ labor: newLabor });
+    } else if (managerMode) {
+      setMgrLabor(newLabor);
+      await setProjectLabor(id, newLabor);
+    }
+  }
 
   // Operational fields (rooms, status, info) — any authenticated user.
   async function save(updated: Partial<Project>) {
@@ -130,24 +155,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     await save({ rooms });
   }
 
-  // Labor management
+  // Labor management (works for admins/owners with pay, and managers hours-only)
   async function addLabor() {
     const today = new Date().toISOString().slice(0, 10);
-    const labor = [...(project!.labor || []), { name: "", role: "Stager", type: "Staging" as const, date: today, start_time: "09:00", end_time: "17:00", rate: 0 }];
-    await saveFin({ labor });
+    const labor = [...laborList, { id: generateId(), name: "", role: "Stager", type: "Staging" as const, date: today, start_time: "09:00", end_time: "17:00", rate: 0 }];
+    await saveLabor(labor);
   }
 
   async function updateLabor(idx: number, field: keyof LaborEntry, value: string | number) {
-    const labor = [...(project!.labor || [])];
+    const labor = [...laborList];
     const numericFields: (keyof LaborEntry)[] = ["rate", "hours"];
     labor[idx] = { ...labor[idx], [field]: numericFields.includes(field) ? Number(value) : value };
-    await saveFin({ labor });
+    await saveLabor(labor);
   }
 
   async function removeLabor(idx: number) {
-    const labor = [...(project!.labor || [])];
+    const labor = [...laborList];
     labor.splice(idx, 1);
-    await saveFin({ labor });
+    await saveLabor(labor);
   }
 
   // Misc management
@@ -170,9 +195,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "rooms", label: "Rooms & Furniture" },
+    ...(canEditLabor ? ([{ key: "labor", label: "Labor" }] as { key: Tab; label: string }[]) : []),
     ...(canSeeMoney
       ? ([
-          { key: "labor", label: "Labor" },
           { key: "misc", label: "Miscellaneous" },
           { key: "pnl", label: "P&L Summary" },
         ] as { key: Tab; label: string }[])
@@ -289,7 +314,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {currentTab === "labor" && (
         <div>
           <button onClick={addLabor} className="py-1.5 px-3 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer hover:bg-accent2 mb-3">+ Add Labor</button>
-          {(project.labor || []).length === 0 ? (
+          {laborList.length === 0 ? (
             <div className="py-8 text-center text-muted text-sm">No labor entries yet.</div>
           ) : (
             <div className="bg-card rounded-lg shadow-sm overflow-x-auto">
@@ -302,10 +327,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   </tr>
                 </thead>
                 <tbody>
-                  {(project.labor || []).map((l, i) => {
+                  {laborList.map((l, i) => {
                     const hrs = getLaborHours(l);
                     return (
-                      <tr key={i}>
+                      <tr key={l.id || i}>
                         <td className="py-2 px-3 border-b border-border"><input value={l.name || ""} onChange={(e) => updateLabor(i, "name", e.target.value)} placeholder="Name" className="w-32 py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border"><select value={l.role} onChange={(e) => updateLabor(i, "role", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm">{LABOR_ROLES.map((r) => <option key={r}>{r}</option>)}</select></td>
                         <td className="py-2 px-3 border-b border-border"><select value={l.type || "Staging"} onChange={(e) => updateLabor(i, "type", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm">{LABOR_TYPES.map((t) => <option key={t}>{t}</option>)}</select></td>
@@ -313,7 +338,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <td className="py-2 px-3 border-b border-border"><input type="time" value={l.start_time || ""} onChange={(e) => updateLabor(i, "start_time", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border"><input type="time" value={l.end_time || ""} onChange={(e) => updateLabor(i, "end_time", e.target.value)} className="py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border text-muted">{hrs.toFixed(2)}</td>
-                        <td className="py-2 px-3 border-b border-border"><input type="number" min={0} step={0.01} value={l.rate} onChange={(e) => updateLabor(i, "rate", parseFloat(e.target.value) || 0)} className="w-24 py-1.5 px-2 border border-border rounded text-sm" /></td>
+                        <td className="py-2 px-3 border-b border-border"><input type="number" min={0} step={0.01} value={l.rate ?? 0} onChange={(e) => updateLabor(i, "rate", parseFloat(e.target.value) || 0)} className="w-24 py-1.5 px-2 border border-border rounded text-sm" /></td>
                         <td className="py-2 px-3 border-b border-border font-semibold">{formatMoney(getLaborCost(l))}</td>
                         <td className="py-2 px-3 border-b border-border"><button onClick={() => removeLabor(i)} className="py-1 px-2 text-xs font-semibold rounded bg-red text-white border-none cursor-pointer">Del</button></td>
                       </tr>
