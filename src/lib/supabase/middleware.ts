@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
   // Pages reachable without being signed in: the sign-in screen and the
   // email-link landing pages (invite acceptance and password reset), which
   // establish the session client-side from the link.
-  const publicPaths = ["/login", "/accept-invite", "/reset-password"];
+  const publicPaths = ["/login", "/accept-invite", "/reset-password", "/auth/confirm"];
   const isPublic = publicPaths.some((p) => request.nextUrl.pathname.startsWith(p));
 
   if (!user && !isPublic) {
