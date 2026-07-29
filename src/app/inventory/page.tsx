@@ -407,13 +407,13 @@ export default function InventoryPage() {
                     {formImages.map((src, i) => (
                       <div key={i} className="relative w-20 h-20 rounded-md overflow-hidden border border-border group">
                         <img src={src} alt="" className="w-full h-full object-cover" />
-                        <button onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 bg-black/60 text-white border-none rounded-full w-5 h-5 text-xs cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                        <button onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 bg-black/70 text-white border-none rounded-full w-6 h-6 text-sm cursor-pointer flex items-center justify-center shadow-md">&times;</button>
                       </div>
                     ))}
                     {pendingFiles.map((f, i) => (
                       <div key={`p-${i}`} className="relative w-20 h-20 rounded-md overflow-hidden border-2 border-dashed border-accent/40 group flex items-center justify-center bg-accent/5">
                         <span className="text-xs text-accent truncate px-1">{f.name}</span>
-                        <button onClick={() => removePendingFile(i)} className="absolute top-0.5 right-0.5 bg-black/60 text-white border-none rounded-full w-5 h-5 text-xs cursor-pointer flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
+                        <button onClick={() => removePendingFile(i)} className="absolute top-0.5 right-0.5 bg-black/70 text-white border-none rounded-full w-6 h-6 text-sm cursor-pointer flex items-center justify-center shadow-md">&times;</button>
                       </div>
                     ))}
                     <label className="w-20 h-20 border-2 border-dashed border-border rounded-md flex items-center justify-center cursor-pointer text-muted text-2xl transition-colors hover:border-accent hover:text-accent">
