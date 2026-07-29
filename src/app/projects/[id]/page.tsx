@@ -278,9 +278,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       const thumb = it?.images?.[0];
                       return (
                         <div key={ai} className="relative bg-card border border-border rounded-lg w-28 overflow-hidden group">
+                          {/* Always visible: phones and tablets have no hover state,
+                              so a hover-only remove button is unreachable there. */}
                           <button
                             onClick={() => unassign(rm, ai)}
-                            className="absolute top-1 right-1 z-10 bg-red text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold cursor-pointer border-none opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-1 right-1 z-10 bg-red text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold cursor-pointer border-none shadow-md"
                             title="Remove"
                           >
                             ✕

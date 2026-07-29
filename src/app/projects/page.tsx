@@ -39,6 +39,9 @@ export default function ProjectsPage() {
   const [fStatus, setFStatus] = useState("Scheduled");
   const [fStart, setFStart] = useState("");
   const [fEnd, setFEnd] = useState("");
+  // True once the user types their own end date, which stops the automatic
+  // "install date + 90 days" from overwriting their choice.
+  const [fEndManual, setFEndManual] = useState(false);
   const [fNotes, setFNotes] = useState("");
   const [fInvoice, setFInvoice] = useState(0);
   const [fDeposit, setFDeposit] = useState(0);
@@ -77,12 +80,16 @@ export default function ProjectsPage() {
       setFNotes(""); setFInvoice(0); setFDeposit(0);
       setFContract(0); setFOwner("");
     }
+    setFEndManual(false);
     setModalOpen(true);
   }
 
   function handleStartChange(val: string) {
     setFStart(val);
-    if (val && !fEnd) {
+    // Always re-derive the end date from the install date so changing the
+    // install date (including on an existing project) keeps the 90-day term
+    // correct. Only a hand-typed end date is left alone.
+    if (val && !fEndManual) {
       // Parse as UTC and do the arithmetic in UTC so DST and local
       // timezone shifts can't move the date by ±1 day.
       const d = new Date(val + "T00:00:00Z");
@@ -248,7 +255,7 @@ export default function ProjectsPage() {
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Agent Contact</label><input value={fAgent} onChange={(e) => setFAgent(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Status</label><select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent">{PROJECT_STATUSES.map((s) => <option key={s}>{s}</option>)}</select></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Start Date</label><input type="date" value={fStart} onChange={(e) => handleStartChange(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
-                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">End Date</label><input type="date" value={fEnd} onChange={(e) => setFEnd(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">End Date</label><input type="date" value={fEnd} onChange={(e) => { setFEnd(e.target.value); setFEndManual(true); }} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1 col-span-2 max-sm:col-span-1"><label className="text-xs font-semibold text-muted">Notes</label><textarea rows={2} value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm resize-y min-h-[50px] focus:outline-none focus:border-accent" /></div>
                 </div>
               </div>
