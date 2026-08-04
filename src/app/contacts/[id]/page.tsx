@@ -124,7 +124,8 @@ export default function ContactDetailPage() {
         contact_id: id,
         title: taskTitle.trim(),
         due_date: taskDue || null,
-        assigned_to: taskAssignee || null,
+        // Mirrors the dropdown, which shows the current user by default.
+        assigned_to: taskAssignee || profile?.id || null,
       });
       setTaskTitle(""); setTaskDue(""); setTaskAssignee("");
       await mutateTasks();
@@ -473,12 +474,14 @@ export default function ContactDetailPage() {
                 onChange={(e) => setTaskDue(e.target.value)}
                 className="py-2 px-2.5 border border-border rounded-lg text-sm bg-card"
               />
+              {/* Tasks are personal: only the assignee, the creator and
+                  admins/operations can see them. Defaults to yourself. */}
               <select
-                value={taskAssignee}
+                value={taskAssignee || profile?.id || ""}
                 onChange={(e) => setTaskAssignee(e.target.value)}
                 className="py-2 px-2.5 border border-border rounded-lg text-sm bg-card"
               >
-                <option value="">Anyone</option>
+                <option value="">Unassigned</option>
                 {team.map((t) => (
                   <option key={t.id} value={t.id}>{t.full_name || "(no name)"}</option>
                 ))}
@@ -519,7 +522,7 @@ export default function ContactDetailPage() {
                             Due {t.due_date}{overdue ? " · overdue" : ""}
                           </span>
                         )}
-                        <span>{t.assigned_to ? teamName(t.assigned_to) : "Anyone"}</span>
+                        <span>{t.assigned_to ? teamName(t.assigned_to) : "Unassigned"}</span>
                       </div>
                     </div>
                     <button

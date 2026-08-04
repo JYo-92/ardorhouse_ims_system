@@ -535,7 +535,7 @@ function TasksDue({
     return c ? `${c.first_name} ${c.last_name || ""}`.trim() : "Unknown contact";
   };
   const memberName = (uid: string | null) =>
-    uid ? team.find((t) => t.id === uid)?.full_name || "—" : "Anyone";
+    uid ? team.find((t) => t.id === uid)?.full_name || "—" : "Unassigned";
 
   const sorted = [...tasks].sort((a, b) => {
     if (!a.due_date && !b.due_date) return 0;
