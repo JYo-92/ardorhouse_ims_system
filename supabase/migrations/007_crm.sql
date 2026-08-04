@@ -226,8 +226,12 @@ grant execute on function public.crm_team_members() to authenticated;
 -- ---------------------------------------------------------------------------
 -- 8. Keep updated_at honest on the two edited-in-place tables.
 -- ---------------------------------------------------------------------------
+-- search_path is pinned so a caller-controlled search_path cannot influence
+-- this trigger. now() is in pg_catalog, which is always in scope.
 create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;
