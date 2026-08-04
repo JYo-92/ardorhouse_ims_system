@@ -158,7 +158,7 @@ export default function InventoryPage() {
         name: formName.trim(),
         category: formCat.trim(),
         size: formSize || null,
-        qty: Math.max(1, parseInt(formQty, 10) || 1),
+        qty: Math.max(0, parseInt(formQty, 10) || 0),
         cost: Math.max(0, parseFloat(formCost) || 0),
         status: formStatus,
         notes: formNotes.trim() || null,
@@ -392,11 +392,13 @@ export default function InventoryPage() {
                   <input
                     type="number"
                     inputMode="numeric"
-                    min={1}
+                    min={0}
                     value={formQty}
                     onChange={(e) => setFormQty(e.target.value)}
                     onFocus={(e) => e.currentTarget.select()}
-                    onBlur={() => { if (formQty.trim() === "" || Number(formQty) < 1) setFormQty("1"); }}
+                    // 0 is allowed and meaningful: the item stays in the
+                    // catalogue but we hold none of it.
+                    onBlur={() => { if (formQty.trim() === "" || Number(formQty) < 0 || Number.isNaN(Number(formQty))) setFormQty("0"); }}
                     className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
                   />
                 </div>
