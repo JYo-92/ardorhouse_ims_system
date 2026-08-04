@@ -44,6 +44,40 @@ export default function AdminPage() {
     }
   }
 
+  /** Two-step on purpose: the first call reports what the account has
+   *  attached, then we ask, then we actually delete. */
+  async function removeUser(id: string, name: string) {
+    try {
+      const probe = await fetch("/api/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const info = await probe.json();
+      if (!probe.ok) throw new Error(info.error || "Could not remove user");
+
+      const clockNote =
+        info.timeEntries > 0
+          ? `\n\nThis will also delete ${info.timeEntries} clock-in record${info.timeEntries === 1 ? "" : "s"}. Payroll history already exported is unaffected.`
+          : "\n\nNothing else is attached to this account.";
+      if (!confirm(`Permanently remove ${name}? They lose access immediately and this cannot be undone.${clockNote}`)) {
+        return;
+      }
+
+      const res = await fetch("/api/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not remove user");
+      await mutate();
+      toast(`${name} removed`);
+    } catch (err) {
+      toast("Error: " + (err as Error).message, "error");
+    }
+  }
+
   async function resetPassword(id: string, name: string) {
     const pw = window.prompt(
       `Set a temporary password for ${name}.\nThey can change it later via "Forgot password".`,
@@ -155,12 +189,22 @@ export default function AdminPage() {
                     </select>
                   </td>
                   <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">
-                    <button
-                      onClick={() => resetPassword(u.id, u.full_name || u.email || "this user")}
-                      className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background"
-                    >
-                      Reset Password
-                    </button>
+                    <div className="flex gap-1.5 justify-end">
+                      <button
+                        onClick={() => resetPassword(u.id, u.full_name || u.email || "this user")}
+                        className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background"
+                      >
+                        Reset Password
+                      </button>
+                      <button
+                        onClick={() => removeUser(u.id, u.full_name || u.email || "this user")}
+                        disabled={u.id === userId}
+                        title={u.id === userId ? "You can't remove your own account" : "Remove this person"}
+                        className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-red text-white border-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

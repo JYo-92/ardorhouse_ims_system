@@ -15,6 +15,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: "◼" },
   { href: "/inventory", label: "Inventory", icon: "◼" },
   { href: "/projects", label: "Projects", icon: "◼" },
+  // CRM: admins, managers and designers. Installers only ever see the clock.
+  { href: "/contacts", label: "Contacts", icon: "◼", roles: ["super_admin", "manager", "user"] },
   { href: "/reports", label: "Reports", icon: "◼", roles: ["super_admin"] },
 ];
 

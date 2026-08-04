@@ -117,6 +117,9 @@ export function getItemStatus(
   projects: Project[]
 ): string {
   const staged = getStaged(item.id, projects);
+  // A zero-quantity item is one we no longer hold, not one that is out on a
+  // job. Without this, staged (0) >= qty (0) would read as "Out for Staging".
+  if (item.qty <= 0 && staged === 0) return "Out of Stock";
   if (staged >= item.qty) return "Out for Staging";
   if (staged > 0) return "Partial - Out for Staging";
   if (item.status === "Reserved") return "Reserved";
