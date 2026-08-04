@@ -1,0 +1,466 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useCrm,
+  useTeamMembers,
+  saveContact,
+  saveBrokerage,
+  deleteBrokerage,
+} from "@/hooks/use-contacts";
+import { useProfile } from "@/hooks/use-profile";
+import { useToast } from "@/components/layout/toast-provider";
+import { generateId } from "@/lib/calculations";
+import type { Brokerage, Contact, ContactStatus } from "@/lib/types";
+
+const STATUSES: ContactStatus[] = ["Active", "Prospect", "Inactive"];
+
+export default function ContactsPage() {
+  const { contacts, brokerages, links, mutate, isLoading } = useCrm();
+  const { team } = useTeamMembers();
+  const { isSuperAdmin } = useProfile();
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterBrokerage, setFilterBrokerage] = useState("");
+
+  // Contact modal
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Contact | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [fFirst, setFFirst] = useState("");
+  const [fLast, setFLast] = useState("");
+  const [fEmail, setFEmail] = useState("");
+  const [fPhone, setFPhone] = useState("");
+  const [fTitle, setFTitle] = useState("");
+  const [fBrokerage, setFBrokerage] = useState("");
+  const [fOwner, setFOwner] = useState("");
+  const [fStatus, setFStatus] = useState<ContactStatus>("Active");
+  const [fNotes, setFNotes] = useState("");
+
+  // Brokerage modal
+  const [brkOpen, setBrkOpen] = useState(false);
+  const [brkEditing, setBrkEditing] = useState<Brokerage | null>(null);
+  const [bName, setBName] = useState("");
+  const [bPhone, setBPhone] = useState("");
+  const [bWebsite, setBWebsite] = useState("");
+  const [bAddress, setBAddress] = useState("");
+
+  const brokerageName = useMemo(() => {
+    const m = new Map(brokerages.map((b) => [b.id, b.name]));
+    return (id: string | null) => (id ? m.get(id) || "—" : "—");
+  }, [brokerages]);
+
+  const ownerName = useMemo(() => {
+    const m = new Map(team.map((t) => [t.id, t.full_name || "—"]));
+    return (id: string | null) => (id ? m.get(id) || "—" : "—");
+  }, [team]);
+
+  // How many projects we have done for each contact.
+  const projectCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of links) m.set(l.contact_id, (m.get(l.contact_id) || 0) + 1);
+    return m;
+  }, [links]);
+
+  const filtered = contacts.filter((c) => {
+    if (filterStatus && c.status !== filterStatus) return false;
+    if (filterBrokerage && c.brokerage_id !== filterBrokerage) return false;
+    if (search) {
+      const hay = `${c.first_name} ${c.last_name || ""} ${c.email || ""} ${
+        c.phone || ""
+      } ${brokerageName(c.brokerage_id)}`.toLowerCase();
+      if (!hay.includes(search.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  function openModal(c?: Contact) {
+    if (c) {
+      setEditing(c);
+      setFFirst(c.first_name);
+      setFLast(c.last_name || "");
+      setFEmail(c.email || "");
+      setFPhone(c.phone || "");
+      setFTitle(c.title || "");
+      setFBrokerage(c.brokerage_id || "");
+      setFOwner(c.owner_id || "");
+      setFStatus(c.status);
+      setFNotes(c.notes || "");
+    } else {
+      setEditing(null);
+      setFFirst(""); setFLast(""); setFEmail(""); setFPhone("");
+      setFTitle(""); setFBrokerage(""); setFOwner("");
+      setFStatus("Active"); setFNotes("");
+    }
+    setModalOpen(true);
+  }
+
+  async function handleSave() {
+    if (!fFirst.trim()) { toast("First name is required", "error"); return; }
+    setSaving(true);
+    try {
+      await saveContact({
+        id: editing?.id || generateId(),
+        first_name: fFirst.trim(),
+        last_name: fLast.trim() || null,
+        email: fEmail.trim() || null,
+        phone: fPhone.trim() || null,
+        title: fTitle.trim() || null,
+        brokerage_id: fBrokerage || null,
+        owner_id: fOwner || null,
+        status: fStatus,
+        notes: fNotes.trim() || null,
+      });
+      await mutate();
+      setModalOpen(false);
+      toast(editing ? "Contact updated" : "Contact added");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save contact", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openBrokerage(b?: Brokerage) {
+    if (b) {
+      setBrkEditing(b);
+      setBName(b.name); setBPhone(b.phone || "");
+      setBWebsite(b.website || ""); setBAddress(b.address || "");
+    } else {
+      setBrkEditing(null);
+      setBName(""); setBPhone(""); setBWebsite(""); setBAddress("");
+    }
+    setBrkOpen(true);
+  }
+
+  async function handleSaveBrokerage() {
+    if (!bName.trim()) { toast("Brokerage name is required", "error"); return; }
+    setSaving(true);
+    try {
+      await saveBrokerage({
+        id: brkEditing?.id || generateId(),
+        name: bName.trim(),
+        phone: bPhone.trim() || null,
+        website: bWebsite.trim() || null,
+        address: bAddress.trim() || null,
+        notes: brkEditing?.notes || null,
+      });
+      await mutate();
+      setBrkOpen(false);
+      toast(brkEditing ? "Brokerage updated" : "Brokerage added");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteBrokerage(b: Brokerage) {
+    const used = contacts.filter((c) => c.brokerage_id === b.id).length;
+    const msg = used
+      ? `Remove "${b.name}"? ${used} contact${used === 1 ? "" : "s"} will keep their details but lose the brokerage link.`
+      : `Remove "${b.name}"?`;
+    if (!confirm(msg)) return;
+    try {
+      await deleteBrokerage(b.id);
+      await mutate();
+      toast("Brokerage removed");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not remove", "error");
+    }
+  }
+
+  const activeCount = contacts.filter((c) => c.status === "Active").length;
+
+  return (
+    <div>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+        <div>
+          <h2 className="text-xl font-bold">Contacts</h2>
+          <p className="text-xs text-muted mt-0.5">
+            {contacts.length} total · {activeCount} active
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => openBrokerage()}
+            className="py-2 px-3 text-sm font-semibold rounded-lg bg-card border border-border cursor-pointer"
+          >
+            + Brokerage
+          </button>
+          <button
+            onClick={() => openModal()}
+            className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer"
+          >
+            + Contact
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, email, phone, brokerage…"
+          className="flex-1 min-w-[200px] py-2 px-3 border border-border rounded-lg text-sm bg-card focus:outline-none focus:border-accent"
+        />
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="py-2 px-3 border border-border rounded-lg text-sm bg-card"
+        >
+          <option value="">All statuses</option>
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={filterBrokerage}
+          onChange={(e) => setFilterBrokerage(e.target.value)}
+          className="py-2 px-3 border border-border rounded-lg text-sm bg-card"
+        >
+          <option value="">All brokerages</option>
+          {brokerages.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </div>
+
+      {/* Contact list */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="p-6 text-sm text-muted">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-6 text-sm text-muted">
+            {contacts.length === 0
+              ? "No contacts yet. Add your first agent to get started."
+              : "No contacts match those filters."}
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <table className="w-full border-collapse text-sm hidden md:table">
+              <thead>
+                <tr className="text-left text-muted text-xs uppercase tracking-wider">
+                  <th className="py-2.5 px-3 border-b border-border">Name</th>
+                  <th className="py-2.5 px-3 border-b border-border">Brokerage</th>
+                  <th className="py-2.5 px-3 border-b border-border">Email</th>
+                  <th className="py-2.5 px-3 border-b border-border">Phone</th>
+                  <th className="py-2.5 px-3 border-b border-border">Owner</th>
+                  <th className="py-2.5 px-3 border-b border-border">Projects</th>
+                  <th className="py-2.5 px-3 border-b border-border">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => (
+                  <tr
+                    key={c.id}
+                    onClick={() => router.push(`/contacts/${c.id}`)}
+                    className="cursor-pointer hover:bg-background"
+                  >
+                    <td className="py-2.5 px-3 border-b border-border font-semibold">
+                      {c.first_name} {c.last_name || ""}
+                    </td>
+                    <td className="py-2.5 px-3 border-b border-border">{brokerageName(c.brokerage_id)}</td>
+                    <td className="py-2.5 px-3 border-b border-border">{c.email || "—"}</td>
+                    <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{c.phone || "—"}</td>
+                    <td className="py-2.5 px-3 border-b border-border">{ownerName(c.owner_id)}</td>
+                    <td className="py-2.5 px-3 border-b border-border font-semibold">
+                      {projectCount.get(c.id) || 0}
+                    </td>
+                    <td className="py-2.5 px-3 border-b border-border">
+                      <StatusPill status={c.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-border">
+              {filtered.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => router.push(`/contacts/${c.id}`)}
+                  className="p-3.5 cursor-pointer active:bg-background"
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="font-semibold text-sm">
+                      {c.first_name} {c.last_name || ""}
+                    </div>
+                    <StatusPill status={c.status} />
+                  </div>
+                  <div className="text-xs text-muted mt-1">
+                    {brokerageName(c.brokerage_id)}
+                  </div>
+                  <div className="text-xs mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    {c.phone && <span>{c.phone}</span>}
+                    {c.email && <span className="truncate">{c.email}</span>}
+                  </div>
+                  <div className="text-xs text-muted mt-1">
+                    {projectCount.get(c.id) || 0} project
+                    {(projectCount.get(c.id) || 0) === 1 ? "" : "s"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Brokerage manager */}
+      {brokerages.length > 0 && (
+        <div className="mt-5">
+          <h3 className="text-sm font-semibold mb-2">Brokerages</h3>
+          <div className="flex flex-wrap gap-2">
+            {brokerages.map((b) => (
+              <span
+                key={b.id}
+                className="inline-flex items-center gap-2 bg-card border border-border rounded-lg py-1.5 px-2.5 text-xs"
+              >
+                <button
+                  onClick={() => openBrokerage(b)}
+                  className="font-semibold bg-transparent border-none cursor-pointer p-0 text-foreground"
+                >
+                  {b.name}
+                </button>
+                <span className="text-muted">
+                  {contacts.filter((c) => c.brokerage_id === b.id).length}
+                </span>
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => handleDeleteBrokerage(b)}
+                    title="Remove brokerage"
+                    className="bg-red text-white rounded-full w-5 h-5 flex items-center justify-center border-none cursor-pointer text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contact modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
+            <h3 className="text-lg font-bold mb-3">
+              {editing ? "Edit Contact" : "New Contact"}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="First Name *">
+                <input value={fFirst} onChange={(e) => setFFirst(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Last Name">
+                <input value={fLast} onChange={(e) => setFLast(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Email">
+                <input type="email" value={fEmail} onChange={(e) => setFEmail(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Phone">
+                <input value={fPhone} onChange={(e) => setFPhone(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Brokerage">
+                <select value={fBrokerage} onChange={(e) => setFBrokerage(e.target.value)} className={inputCls}>
+                  <option value="">—</option>
+                  {brokerages.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Title">
+                <input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Realtor" className={inputCls} />
+              </Field>
+              <Field label="Contact Owner">
+                <select value={fOwner} onChange={(e) => setFOwner(e.target.value)} className={inputCls}>
+                  <option value="">Unassigned</option>
+                  {team.map((t) => (
+                    <option key={t.id} value={t.id}>{t.full_name || "(no name)"}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Status">
+                <select value={fStatus} onChange={(e) => setFStatus(e.target.value as ContactStatus)} className={inputCls}>
+                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Notes">
+                  <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={3} className={inputCls} />
+                </Field>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setModalOpen(false)} className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-background border border-border cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleSave} disabled={saving} className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer disabled:opacity-60">
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Brokerage modal */}
+      {brkOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl w-full max-w-md p-5">
+            <h3 className="text-lg font-bold mb-3">
+              {brkEditing ? "Edit Brokerage" : "New Brokerage"}
+            </h3>
+            <div className="flex flex-col gap-3">
+              <Field label="Name *">
+                <input value={bName} onChange={(e) => setBName(e.target.value)} placeholder="Keller Williams" className={inputCls} />
+              </Field>
+              <Field label="Phone">
+                <input value={bPhone} onChange={(e) => setBPhone(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Website">
+                <input value={bWebsite} onChange={(e) => setBWebsite(e.target.value)} className={inputCls} />
+              </Field>
+              <Field label="Address">
+                <input value={bAddress} onChange={(e) => setBAddress(e.target.value)} className={inputCls} />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setBrkOpen(false)} className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-background border border-border cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleSaveBrokerage} disabled={saving} className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer disabled:opacity-60">
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const inputCls =
+  "w-full py-2 px-2.5 border border-border rounded-lg text-sm bg-card focus:outline-none focus:border-accent";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-semibold text-muted">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: ContactStatus }) {
+  const cls =
+    status === "Active"
+      ? "bg-green/15 text-green"
+      : status === "Prospect"
+      ? "bg-accent/15 text-accent"
+      : "bg-muted/15 text-muted";
+  return (
+    <span className={`inline-block py-0.5 px-2 rounded-full text-[.68rem] font-semibold ${cls}`}>
+      {status}
+    </span>
+  );
+}

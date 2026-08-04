@@ -110,6 +110,63 @@ export interface PayrollEntry {
   rate: number;
 }
 
+// --- CRM -------------------------------------------------------------------
+
+export type ContactStatus = "Active" | "Prospect" | "Inactive";
+
+export interface Brokerage {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  title: string | null;
+  brokerage_id: string | null;
+  owner_id: string | null;
+  status: ContactStatus;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ContactNote {
+  id: string;
+  contact_id: string;
+  author_id: string | null;
+  body: string;
+  created_at?: string;
+}
+
+export interface ContactTask {
+  id: string;
+  contact_id: string;
+  title: string;
+  due_date: string | null;
+  assigned_to: string | null;
+  status: "Open" | "Done";
+  created_by: string | null;
+  created_at?: string;
+  completed_at?: string | null;
+}
+
+/** Minimal teammate record from crm_team_members() — no email by design. */
+export interface TeamMember {
+  id: string;
+  full_name: string | null;
+  role: Role;
+}
+
 export interface ProjectCalc {
   totalLabor: number;
   laborStaging: number;
