@@ -134,6 +134,8 @@ export interface Contact {
   title: string | null;
   brokerage_id: string | null;
   owner_id: string | null;
+  /** Who added this contact. Designers only see their own. */
+  created_by?: string | null;
   status: ContactStatus;
   notes: string | null;
   created_at?: string;

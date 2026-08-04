@@ -15,12 +15,14 @@ import {
   linkProject,
   unlinkProject,
   deleteContact,
+  updateContact,
 } from "@/hooks/use-contacts";
 import { useProjects, saveProjectInfo, createFinancials } from "@/hooks/use-projects";
 import { useProfile } from "@/hooks/use-profile";
 import { useToast } from "@/components/layout/toast-provider";
 import { BUSINESS_UNITS, PROJECT_STATUSES } from "@/lib/constants";
 import { generateId } from "@/lib/calculations";
+import type { ContactStatus } from "@/lib/types";
 
 type Tab = "projects" | "notes" | "tasks";
 
@@ -47,6 +49,8 @@ export default function ContactDetailPage() {
 
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkSearch, setLinkSearch] = useState("");
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [savingOwner, setSavingOwner] = useState(false);
 
   // New-project form
   const [projOpen, setProjOpen] = useState(false);
@@ -245,7 +249,32 @@ export default function ContactDetailPage() {
               {brokerage ? ` · ${brokerage.name}` : ""}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status is changed right here — the most common edit by far. */}
+            <label className="flex items-center gap-1.5 text-xs text-muted">
+              Status
+              <select
+                value={contact.status}
+                disabled={savingStatus}
+                onChange={async (e) => {
+                  setSavingStatus(true);
+                  try {
+                    await updateContact({ ...contact!, status: e.target.value as ContactStatus });
+                    await mutate();
+                    toast(`Status set to ${e.target.value}`);
+                  } catch (err) {
+                    toast(err instanceof Error ? err.message : "Could not update status", "error");
+                  } finally {
+                    setSavingStatus(false);
+                  }
+                }}
+                className="py-1.5 px-2 border border-border rounded-lg text-sm font-semibold bg-card cursor-pointer disabled:opacity-60"
+              >
+                {(["Active", "Prospect", "Inactive"] as ContactStatus[]).map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
             {isSuperAdmin && (
               <button onClick={handleDeleteContact} className="py-2 px-3 text-sm font-semibold rounded-lg bg-red text-white border-none cursor-pointer">
                 Delete
@@ -257,7 +286,31 @@ export default function ContactDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Stat label="Email" value={contact.email || "—"} href={contact.email ? `mailto:${contact.email}` : undefined} />
           <Stat label="Phone" value={contact.phone || "—"} href={contact.phone ? `tel:${contact.phone}` : undefined} />
-          <Stat label="Owner" value={teamName(contact.owner_id)} />
+          <div>
+            <div className="text-[.68rem] text-muted uppercase tracking-wider">Owner</div>
+            <select
+              value={contact.owner_id || ""}
+              disabled={savingOwner}
+              onChange={async (e) => {
+                setSavingOwner(true);
+                try {
+                  await updateContact({ ...contact!, owner_id: e.target.value || null });
+                  await mutate();
+                  toast("Owner updated");
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : "Could not update owner", "error");
+                } finally {
+                  setSavingOwner(false);
+                }
+              }}
+              className="w-full mt-0.5 py-1 px-1.5 border border-border rounded-lg text-sm font-semibold bg-card cursor-pointer disabled:opacity-60"
+            >
+              <option value="">Unassigned</option>
+              {team.map((t) => (
+                <option key={t.id} value={t.id}>{t.full_name || "(no name)"}</option>
+              ))}
+            </select>
+          </div>
           <Stat label="Projects" value={String(linkedProjects.length)} />
         </div>
 

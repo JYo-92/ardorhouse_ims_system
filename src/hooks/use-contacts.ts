@@ -62,10 +62,9 @@ export function useTeamMembers() {
 
 // --- Contacts --------------------------------------------------------------
 
-export async function saveContact(c: Contact) {
-  const supabase = createClient();
-  const { error } = await supabase.from("contacts").upsert({
-    id: c.id,
+/** Fields a user can edit. created_by is deliberately not among them. */
+function contactFields(c: Contact) {
+  return {
     first_name: c.first_name,
     last_name: c.last_name || null,
     email: c.email || null,
@@ -75,7 +74,30 @@ export async function saveContact(c: Contact) {
     owner_id: c.owner_id || null,
     status: c.status,
     notes: c.notes || null,
+  };
+}
+
+/** New contact. Stamped as created by the signed-in user, which is what the
+ *  insert policy requires and what scopes a designer's visibility. */
+export async function createContact(c: Contact) {
+  const supabase = createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  const { error } = await supabase.from("contacts").insert({
+    id: c.id,
+    ...contactFields(c),
+    created_by: auth.user?.id,
   });
+  if (error) throw error;
+}
+
+/** Edit an existing contact. created_by is never rewritten — otherwise an
+ *  admin editing a designer's contact would take it away from them. */
+export async function updateContact(c: Contact) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("contacts")
+    .update(contactFields(c))
+    .eq("id", c.id);
   if (error) throw error;
 }
 

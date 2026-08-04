@@ -5,27 +5,33 @@ import { useRouter } from "next/navigation";
 import {
   useCrm,
   useTeamMembers,
-  saveContact,
+  useAllOpenTasks,
+  createContact,
+  updateContact,
   saveBrokerage,
   deleteBrokerage,
+  setTaskStatus,
 } from "@/hooks/use-contacts";
 import { useProfile } from "@/hooks/use-profile";
 import { useToast } from "@/components/layout/toast-provider";
 import { generateId } from "@/lib/calculations";
-import type { Brokerage, Contact, ContactStatus } from "@/lib/types";
+import type { Brokerage, Contact, ContactStatus, ContactTask, TeamMember } from "@/lib/types";
 
 const STATUSES: ContactStatus[] = ["Active", "Prospect", "Inactive"];
 
 export default function ContactsPage() {
   const { contacts, brokerages, links, mutate, isLoading } = useCrm();
   const { team } = useTeamMembers();
+  const { tasks: openTasks, mutate: mutateTasks } = useAllOpenTasks();
   const { isSuperAdmin } = useProfile();
   const { toast } = useToast();
   const router = useRouter();
 
+  const [view, setView] = useState<"contacts" | "tasks">("contacts");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterBrokerage, setFilterBrokerage] = useState("");
+  const [filterOwner, setFilterOwner] = useState("");
 
   // Contact modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,6 +75,11 @@ export default function ContactsPage() {
   const filtered = contacts.filter((c) => {
     if (filterStatus && c.status !== filterStatus) return false;
     if (filterBrokerage && c.brokerage_id !== filterBrokerage) return false;
+    if (filterOwner) {
+      if (filterOwner === "__unassigned") {
+        if (c.owner_id) return false;
+      } else if (c.owner_id !== filterOwner) return false;
+    }
     if (search) {
       const hay = `${c.first_name} ${c.last_name || ""} ${c.email || ""} ${
         c.phone || ""
@@ -103,7 +114,7 @@ export default function ContactsPage() {
     if (!fFirst.trim()) { toast("First name is required", "error"); return; }
     setSaving(true);
     try {
-      await saveContact({
+      const payload = {
         id: editing?.id || generateId(),
         first_name: fFirst.trim(),
         last_name: fLast.trim() || null,
@@ -114,7 +125,9 @@ export default function ContactsPage() {
         owner_id: fOwner || null,
         status: fStatus,
         notes: fNotes.trim() || null,
-      });
+      };
+      if (editing) await updateContact(payload);
+      else await createContact(payload);
       await mutate();
       setModalOpen(false);
       toast(editing ? "Contact updated" : "Contact added");
@@ -201,6 +214,28 @@ export default function ContactsPage() {
         </div>
       </div>
 
+      {/* View tabs */}
+      <div className="flex gap-1 border-b border-border mb-4">
+        {([
+          { key: "contacts" as const, label: `Contacts (${contacts.length})` },
+          { key: "tasks" as const, label: `Tasks Due (${openTasks.length})` },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`py-2 px-4 text-sm font-semibold cursor-pointer -mb-[2px] bg-transparent border-none whitespace-nowrap ${
+              view === t.key
+                ? "text-accent border-b-2 border-b-accent"
+                : "text-muted hover:text-foreground border-b-2 border-b-transparent"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === "contacts" && (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-3">
         <input
@@ -209,6 +244,17 @@ export default function ContactsPage() {
           placeholder="Search name, email, phone, brokerage…"
           className="flex-1 min-w-[200px] py-2 px-3 border border-border rounded-lg text-sm bg-card focus:outline-none focus:border-accent"
         />
+        <select
+          value={filterOwner}
+          onChange={(e) => setFilterOwner(e.target.value)}
+          className="py-2 px-3 border border-border rounded-lg text-sm bg-card"
+        >
+          <option value="">All owners</option>
+          <option value="__unassigned">Unassigned</option>
+          {team.map((t) => (
+            <option key={t.id} value={t.id}>{t.full_name || "(no name)"}</option>
+          ))}
+        </select>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
@@ -342,6 +388,22 @@ export default function ContactsPage() {
           </div>
         </div>
       )}
+      </>
+      )}
+
+      {/* Tasks Due — every open follow-up across all contacts, soonest first. */}
+      {view === "tasks" && (
+        <TasksDue
+          tasks={openTasks}
+          contacts={contacts}
+          team={team}
+          onToggle={async (taskId) => {
+            await setTaskStatus(taskId, "Done");
+            await mutateTasks();
+          }}
+          onOpenContact={(cid) => router.push(`/contacts/${cid}`)}
+        />
+      )}
 
       {/* Contact modal */}
       {modalOpen && (
@@ -447,6 +509,96 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1">
       <label className="text-xs font-semibold text-muted">{label}</label>
       {children}
+    </div>
+  );
+}
+
+/** All open follow-ups, soonest due first. Undated tasks sort to the bottom
+ *  so the top of the list is always what actually needs doing next. */
+function TasksDue({
+  tasks,
+  contacts,
+  team,
+  onToggle,
+  onOpenContact,
+}: {
+  tasks: ContactTask[];
+  contacts: Contact[];
+  team: TeamMember[];
+  onToggle: (taskId: string) => void | Promise<void>;
+  onOpenContact: (contactId: string) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const contactName = (cid: string) => {
+    const c = contacts.find((x) => x.id === cid);
+    return c ? `${c.first_name} ${c.last_name || ""}`.trim() : "Unknown contact";
+  };
+  const memberName = (uid: string | null) =>
+    uid ? team.find((t) => t.id === uid)?.full_name || "—" : "Anyone";
+
+  const sorted = [...tasks].sort((a, b) => {
+    if (!a.due_date && !b.due_date) return 0;
+    if (!a.due_date) return 1;
+    if (!b.due_date) return -1;
+    return a.due_date.localeCompare(b.due_date);
+  });
+
+  const overdue = sorted.filter((t) => t.due_date && t.due_date < today);
+  const dueToday = sorted.filter((t) => t.due_date === today);
+  const upcoming = sorted.filter((t) => t.due_date && t.due_date > today);
+  const undated = sorted.filter((t) => !t.due_date);
+
+  if (sorted.length === 0) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted">
+        Nothing outstanding. Follow-ups you add on a contact show up here.
+      </div>
+    );
+  }
+
+  const groups: { label: string; items: ContactTask[]; tone?: string }[] = [
+    { label: "Overdue", items: overdue, tone: "text-red" },
+    { label: "Due today", items: dueToday, tone: "text-accent" },
+    { label: "Upcoming", items: upcoming },
+    { label: "No date", items: undated },
+  ].filter((g) => g.items.length > 0);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {groups.map((g) => (
+        <div key={g.label}>
+          <h3 className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${g.tone || "text-muted"}`}>
+            {g.label} ({g.items.length})
+          </h3>
+          <div className="bg-card border border-border rounded-xl divide-y divide-border">
+            {g.items.map((t) => (
+              <div key={t.id} className="p-3.5 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={() => onToggle(t.id)}
+                  title="Mark done"
+                  className="mt-0.5 w-5 h-5 cursor-pointer shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold">{t.title}</div>
+                  <div className="text-xs text-muted mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <button
+                      onClick={() => onOpenContact(t.contact_id)}
+                      className="text-accent bg-transparent border-none cursor-pointer p-0 font-semibold"
+                    >
+                      {contactName(t.contact_id)}
+                    </button>
+                    {t.due_date && <span>Due {t.due_date}</span>}
+                    <span>{memberName(t.assigned_to)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
