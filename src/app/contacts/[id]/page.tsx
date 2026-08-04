@@ -22,7 +22,6 @@ import { useProfile } from "@/hooks/use-profile";
 import { useToast } from "@/components/layout/toast-provider";
 import { BUSINESS_UNITS, PROJECT_STATUSES } from "@/lib/constants";
 import { generateId } from "@/lib/calculations";
-import type { ContactStatus } from "@/lib/types";
 
 type Tab = "projects" | "notes" | "tasks";
 
@@ -32,7 +31,7 @@ export default function ContactDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const { contacts, brokerages, links, mutate } = useCrm();
+  const { contacts, links, mutate } = useCrm();
   const { team } = useTeamMembers();
   const { projects, mutate: mutateProjects } = useProjects();
   const { isSuperAdmin, profile } = useProfile();
@@ -49,9 +48,7 @@ export default function ContactDetailPage() {
 
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkSearch, setLinkSearch] = useState("");
-  const [savingStatus, setSavingStatus] = useState(false);
   const [savingOwner, setSavingOwner] = useState(false);
-  const [savingBrokerage, setSavingBrokerage] = useState(false);
 
   // New-project form
   const [projOpen, setProjOpen] = useState(false);
@@ -64,7 +61,6 @@ export default function ContactDetailPage() {
   const [savingProj, setSavingProj] = useState(false);
 
   const contact = contacts.find((c) => c.id === id);
-  const brokerage = brokerages.find((b) => b.id === contact?.brokerage_id);
   const teamName = (uid: string | null) =>
     uid ? team.find((t) => t.id === uid)?.full_name || "—" : "—";
 
@@ -247,36 +243,10 @@ export default function ContactDetailPage() {
           <div>
             <h2 className="text-xl font-bold">{fullName}</h2>
             <p className="text-sm text-muted mt-0.5">
-              {contact.title || "Agent"}
-              {brokerage ? ` · ${brokerage.name}` : ""}
+              {linkedProjects.length} project{linkedProjects.length === 1 ? "" : "s"} with us
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Status is changed right here — the most common edit by far. */}
-            <label className="flex items-center gap-1.5 text-xs text-muted">
-              Status
-              <select
-                value={contact.status}
-                disabled={savingStatus}
-                onChange={async (e) => {
-                  setSavingStatus(true);
-                  try {
-                    await updateContact({ ...contact!, status: e.target.value as ContactStatus });
-                    await mutate();
-                    toast(`Status set to ${e.target.value}`);
-                  } catch (err) {
-                    toast(err instanceof Error ? err.message : "Could not update status", "error");
-                  } finally {
-                    setSavingStatus(false);
-                  }
-                }}
-                className="py-1.5 px-2 border border-border rounded-lg text-sm font-semibold bg-card cursor-pointer disabled:opacity-60"
-              >
-                {(["Active", "Prospect", "Inactive"] as ContactStatus[]).map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </label>
             {isSuperAdmin && (
               <button onClick={handleDeleteContact} className="py-2 px-3 text-sm font-semibold rounded-lg bg-red text-white border-none cursor-pointer">
                 Delete
@@ -285,36 +255,9 @@ export default function ContactDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Stat label="Email" value={contact.email || "—"} href={contact.email ? `mailto:${contact.email}` : undefined} />
           <Stat label="Phone" value={contact.phone || "—"} href={contact.phone ? `tel:${contact.phone}` : undefined} />
-          {/* Brokerage is assignable here — agents move firms, and one often
-              isn't known at the moment the contact is first created. */}
-          <div>
-            <div className="text-[.68rem] text-muted uppercase tracking-wider">Brokerage</div>
-            <select
-              value={contact.brokerage_id || ""}
-              disabled={savingBrokerage}
-              onChange={async (e) => {
-                setSavingBrokerage(true);
-                try {
-                  await updateContact({ ...contact!, brokerage_id: e.target.value || null });
-                  await mutate();
-                  toast("Brokerage updated");
-                } catch (err) {
-                  toast(err instanceof Error ? err.message : "Could not update brokerage", "error");
-                } finally {
-                  setSavingBrokerage(false);
-                }
-              }}
-              className="w-full mt-0.5 py-1 px-1.5 border border-border rounded-lg text-sm font-semibold bg-card cursor-pointer disabled:opacity-60"
-            >
-              <option value="">None</option>
-              {brokerages.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </div>
           <div>
             <div className="text-[.68rem] text-muted uppercase tracking-wider">Owner</div>
             <select

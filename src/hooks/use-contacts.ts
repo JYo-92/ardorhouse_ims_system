@@ -3,35 +3,30 @@
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import type {
-  Brokerage,
   Contact,
   ContactNote,
   ContactTask,
   TeamMember,
 } from "@/lib/types";
 
-/** Contacts + brokerages + the contact→project links, fetched together.
+/** Contacts plus the contact→project links, fetched together.
  *  RLS restricts all of this to super admins, managers and designers. */
 async function fetchCrm(): Promise<{
   contacts: Contact[];
-  brokerages: Brokerage[];
   links: { contact_id: string; project_id: string }[];
 }> {
   const supabase = createClient();
 
-  const [contactsRes, brokeragesRes, linksRes] = await Promise.all([
+  const [contactsRes, linksRes] = await Promise.all([
     supabase.from("contacts").select("*").order("first_name"),
-    supabase.from("brokerages").select("*").order("name"),
     supabase.from("contact_projects").select("contact_id,project_id"),
   ]);
 
   if (contactsRes.error) throw contactsRes.error;
-  if (brokeragesRes.error) throw brokeragesRes.error;
   if (linksRes.error) throw linksRes.error;
 
   return {
     contacts: (contactsRes.data || []) as Contact[],
-    brokerages: (brokeragesRes.data || []) as Brokerage[],
     links: (linksRes.data || []) as { contact_id: string; project_id: string }[],
   };
 }
@@ -40,7 +35,6 @@ export function useCrm() {
   const { data, error, isLoading, mutate } = useSWR("crm", fetchCrm);
   return {
     contacts: data?.contacts || [],
-    brokerages: data?.brokerages || [],
     links: data?.links || [],
     error,
     isLoading,
@@ -62,17 +56,15 @@ export function useTeamMembers() {
 
 // --- Contacts --------------------------------------------------------------
 
-/** Fields a user can edit. created_by is deliberately not among them. */
+/** Fields a user can edit. created_by is deliberately not among them.
+ *  Brokerage, title and status are no longer tracked. */
 function contactFields(c: Contact) {
   return {
     first_name: c.first_name,
     last_name: c.last_name || null,
     email: c.email || null,
     phone: c.phone || null,
-    title: c.title || null,
-    brokerage_id: c.brokerage_id || null,
     owner_id: c.owner_id || null,
-    status: c.status,
     notes: c.notes || null,
   };
 }
@@ -104,27 +96,6 @@ export async function updateContact(c: Contact) {
 export async function deleteContact(id: string) {
   const supabase = createClient();
   const { error } = await supabase.from("contacts").delete().eq("id", id);
-  if (error) throw error;
-}
-
-// --- Brokerages ------------------------------------------------------------
-
-export async function saveBrokerage(b: Brokerage) {
-  const supabase = createClient();
-  const { error } = await supabase.from("brokerages").upsert({
-    id: b.id,
-    name: b.name,
-    address: b.address || null,
-    phone: b.phone || null,
-    website: b.website || null,
-    notes: b.notes || null,
-  });
-  if (error) throw error;
-}
-
-export async function deleteBrokerage(id: string) {
-  const supabase = createClient();
-  const { error } = await supabase.from("brokerages").delete().eq("id", id);
   if (error) throw error;
 }
 

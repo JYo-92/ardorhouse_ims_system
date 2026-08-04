@@ -112,32 +112,17 @@ export interface PayrollEntry {
 
 // --- CRM -------------------------------------------------------------------
 
-export type ContactStatus = "Active" | "Prospect" | "Inactive";
-
-export interface Brokerage {
-  id: string;
-  name: string;
-  address: string | null;
-  phone: string | null;
-  website: string | null;
-  notes: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface Contact {
   id: string;
   first_name: string;
   last_name: string | null;
   email: string | null;
   phone: string | null;
-  title: string | null;
-  brokerage_id: string | null;
   owner_id: string | null;
+  /** Free-text "about this person" blurb shown on the contact page. */
+  notes: string | null;
   /** Who added this contact. Designers only see their own. */
   created_by?: string | null;
-  status: ContactStatus;
-  notes: string | null;
   created_at?: string;
   updated_at?: string;
 }
