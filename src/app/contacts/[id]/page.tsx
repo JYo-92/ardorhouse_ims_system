@@ -51,6 +51,7 @@ export default function ContactDetailPage() {
   const [linkSearch, setLinkSearch] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingOwner, setSavingOwner] = useState(false);
+  const [savingBrokerage, setSavingBrokerage] = useState(false);
 
   // New-project form
   const [projOpen, setProjOpen] = useState(false);
@@ -284,9 +285,36 @@ export default function ContactDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
           <Stat label="Email" value={contact.email || "—"} href={contact.email ? `mailto:${contact.email}` : undefined} />
           <Stat label="Phone" value={contact.phone || "—"} href={contact.phone ? `tel:${contact.phone}` : undefined} />
+          {/* Brokerage is assignable here — agents move firms, and one often
+              isn't known at the moment the contact is first created. */}
+          <div>
+            <div className="text-[.68rem] text-muted uppercase tracking-wider">Brokerage</div>
+            <select
+              value={contact.brokerage_id || ""}
+              disabled={savingBrokerage}
+              onChange={async (e) => {
+                setSavingBrokerage(true);
+                try {
+                  await updateContact({ ...contact!, brokerage_id: e.target.value || null });
+                  await mutate();
+                  toast("Brokerage updated");
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : "Could not update brokerage", "error");
+                } finally {
+                  setSavingBrokerage(false);
+                }
+              }}
+              className="w-full mt-0.5 py-1 px-1.5 border border-border rounded-lg text-sm font-semibold bg-card cursor-pointer disabled:opacity-60"
+            >
+              <option value="">None</option>
+              {brokerages.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <div className="text-[.68rem] text-muted uppercase tracking-wider">Owner</div>
             <select

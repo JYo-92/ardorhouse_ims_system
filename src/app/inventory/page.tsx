@@ -73,8 +73,11 @@ export default function InventoryPage() {
   const [formName, setFormName] = useState("");
   const [formCat, setFormCat] = useState("");
   const [formSize, setFormSize] = useState("");
-  const [formQty, setFormQty] = useState(1);
-  const [formCost, setFormCost] = useState(0);
+  // Held as text so the field can be emptied while typing. Coercing on every
+  // keystroke made these impossible to clear — deleting the last digit
+  // snapped straight back to 1, so a new number could never be typed.
+  const [formQty, setFormQty] = useState("1");
+  const [formCost, setFormCost] = useState("0");
   const [formStatus, setFormStatus] = useState("In Warehouse");
   const [formNotes, setFormNotes] = useState("");
   const [formImages, setFormImages] = useState<string[]>([]);
@@ -116,8 +119,8 @@ export default function InventoryPage() {
       setFormName(item.name);
       setFormCat(item.category);
       setFormSize(item.size || "");
-      setFormQty(item.qty);
-      setFormCost(item.cost);
+      setFormQty(String(item.qty));
+      setFormCost(String(item.cost));
       setFormStatus(item.status);
       setFormNotes(item.notes || "");
       setFormImages([...(item.images || [])]);
@@ -126,8 +129,8 @@ export default function InventoryPage() {
       setFormName("");
       setFormCat("");
       setFormSize("");
-      setFormQty(1);
-      setFormCost(0);
+      setFormQty("1");
+      setFormCost("0");
       setFormStatus("In Warehouse");
       setFormNotes("");
       setFormImages([]);
@@ -155,8 +158,8 @@ export default function InventoryPage() {
         name: formName.trim(),
         category: formCat.trim(),
         size: formSize || null,
-        qty: formQty,
-        cost: formCost,
+        qty: Math.max(1, parseInt(formQty, 10) || 1),
+        cost: Math.max(0, parseFloat(formCost) || 0),
         status: formStatus,
         notes: formNotes.trim() || null,
         images: [...formImages, ...uploadedUrls],
@@ -188,8 +191,10 @@ export default function InventoryPage() {
     const files = Array.from(e.target.files || []);
     const valid = files.filter((f) => {
       if (!f.type.startsWith("image/")) return false;
-      if (f.size > 5 * 1024 * 1024) {
-        toast("Image too large (max 5MB)", "error");
+      // Generous: photos are downscaled in the browser before upload, so a
+      // large phone original is fine. This only rejects the truly absurd.
+      if (f.size > 40 * 1024 * 1024) {
+        toast("Image too large (max 40MB)", "error");
         return false;
       }
       return true;
@@ -384,11 +389,30 @@ export default function InventoryPage() {
                 )}
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-muted">Quantity Total *</label>
-                  <input type="number" min={1} value={formQty} onChange={(e) => setFormQty(parseInt(e.target.value) || 1)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" />
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={formQty}
+                    onChange={(e) => setFormQty(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => { if (formQty.trim() === "" || Number(formQty) < 1) setFormQty("1"); }}
+                    className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                  />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-muted">Cost Per Piece ($)</label>
-                  <input type="number" min={0} step={0.01} value={formCost} onChange={(e) => setFormCost(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" />
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    value={formCost}
+                    onChange={(e) => setFormCost(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => { if (formCost.trim() === "" || Number(formCost) < 0) setFormCost("0"); }}
+                    className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                  />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-muted">Status</label>
