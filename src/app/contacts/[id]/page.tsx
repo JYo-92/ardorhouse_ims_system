@@ -50,6 +50,15 @@ export default function ContactDetailPage() {
   const [linkSearch, setLinkSearch] = useState("");
   const [savingOwner, setSavingOwner] = useState(false);
 
+  // Edit contact form — for fixing a misspelled name, wrong number, etc.
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [eFirst, setEFirst] = useState("");
+  const [eLast, setELast] = useState("");
+  const [eEmail, setEEmail] = useState("");
+  const [ePhone, setEPhone] = useState("");
+  const [eNotes, setENotes] = useState("");
+
   // New-project form
   const [projOpen, setProjOpen] = useState(false);
   const [pName, setPName] = useState("");
@@ -202,6 +211,38 @@ export default function ContactDetailPage() {
     }
   }
 
+  function openEdit() {
+    if (!contact) return;
+    setEFirst(contact.first_name);
+    setELast(contact.last_name || "");
+    setEEmail(contact.email || "");
+    setEPhone(contact.phone || "");
+    setENotes(contact.notes || "");
+    setEditOpen(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!eFirst.trim()) { toast("First name is required", "error"); return; }
+    setSavingEdit(true);
+    try {
+      await updateContact({
+        ...contact!,
+        first_name: eFirst.trim(),
+        last_name: eLast.trim() || null,
+        email: eEmail.trim() || null,
+        phone: ePhone.trim() || null,
+        notes: eNotes.trim() || null,
+      });
+      await mutate();
+      setEditOpen(false);
+      toast("Contact updated");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save changes", "error");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   async function handleDeleteContact() {
     if (!confirm(`Delete ${fullName}? Their notes and tasks go too. Projects are not affected.`)) return;
     try {
@@ -247,6 +288,12 @@ export default function ContactDetailPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={openEdit}
+              className="py-2 px-3 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer"
+            >
+              Edit
+            </button>
             {isSuperAdmin && (
               <button onClick={handleDeleteContact} className="py-2 px-3 text-sm font-semibold rounded-lg bg-red text-white border-none cursor-pointer">
                 Delete
@@ -511,6 +558,48 @@ export default function ContactDetailPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edit contact */}
+      {editOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
+            <h3 className="text-lg font-bold mb-3">Edit Contact</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-muted">First Name *</label>
+                <input value={eFirst} onChange={(e) => setEFirst(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-muted">Last Name</label>
+                <input value={eLast} onChange={(e) => setELast(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-muted">Email</label>
+                <input type="email" value={eEmail} onChange={(e) => setEEmail(e.target.value)} className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-muted">Phone</label>
+                <input type="tel" value={ePhone} onChange={(e) => setEPhone(e.target.value)} className={inputCls} />
+              </div>
+              <div className="sm:col-span-2 flex flex-col gap-1">
+                <label className="text-xs font-semibold text-muted">Notes</label>
+                <textarea value={eNotes} onChange={(e) => setENotes(e.target.value)} rows={3} className={inputCls} />
+              </div>
+            </div>
+            <p className="text-[.68rem] text-muted mt-2">
+              Contact owner is set from the header.
+            </p>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setEditOpen(false)} className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-background border border-border cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} disabled={savingEdit} className="py-2 px-3.5 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer disabled:opacity-60">
+                {savingEdit ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
