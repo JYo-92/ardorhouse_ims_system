@@ -22,7 +22,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECONDARY_ITEMS: NavItem[] = [
   { href: "/timesheet", label: "Time Clock", icon: "◼", roles: ["super_admin", "manager"] },
-  { href: "/payroll", label: "Weekly Payroll", icon: "◼", roles: ["super_admin", "manager"] },
+  { href: "/payroll", label: "Payroll", icon: "◼", roles: ["super_admin", "manager"] },
   { href: "/admin", label: "Settings", icon: "◼", roles: ["super_admin"] },
 ];
 
