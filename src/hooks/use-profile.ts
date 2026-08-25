@@ -35,7 +35,7 @@ export function useProfile() {
     role,
     userId: profile?.id ?? null,
     isSuperAdmin: role === "super_admin",
-    // Weekly Payroll is visible to super admins and managers.
+    // Payroll is visible to super admins and managers.
     canSeePayroll: role === "super_admin" || role === "manager",
     error,
     isLoading,

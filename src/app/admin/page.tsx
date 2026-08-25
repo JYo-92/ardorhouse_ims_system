@@ -9,7 +9,7 @@ import type { Role } from "@/lib/types";
 const ROLES: { value: Role; label: string; desc: string }[] = [
   { value: "installer", label: "Installer", desc: "Clock in/out only" },
   { value: "user", label: "Designer", desc: "Projects & furniture, no money" },
-  { value: "manager", label: "Manager", desc: "Adds Weekly Payroll" },
+  { value: "manager", label: "Manager", desc: "Adds Payroll" },
   { value: "super_admin", label: "Admin", desc: "Full access" },
 ];
 const roleLabel = (r: Role) => ROLES.find((x) => x.value === r)?.label || r;
