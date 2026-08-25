@@ -154,6 +154,31 @@ export interface TeamMember {
   role: Role;
 }
 
+export const MISC_WORK_TYPES = [
+  "Warehouse",
+  "Junk Removal",
+  "Delivery / Pickup",
+  "Other",
+] as const;
+export type MiscWorkType = (typeof MISC_WORK_TYPES)[number];
+
+/** Hours not tied to a staging job — warehouse, junk removal, deliveries.
+ *  Overhead, so kept out of per-project P&L but included in payroll. */
+export interface MiscLabor {
+  id: string;
+  worker_name: string;
+  role: string | null;
+  work_type: MiscWorkType;
+  description: string | null;
+  work_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  hours: number | null;
+  rate: number;
+  created_by?: string | null;
+  created_at?: string;
+}
+
 export interface ProjectCalc {
   totalLabor: number;
   laborStaging: number;
