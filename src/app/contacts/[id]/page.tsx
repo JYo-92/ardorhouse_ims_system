@@ -21,7 +21,7 @@ import { useProjects, saveProjectInfo, createFinancials } from "@/hooks/use-proj
 import { useProfile } from "@/hooks/use-profile";
 import { useToast } from "@/components/layout/toast-provider";
 import { BUSINESS_UNITS, PROJECT_STATUSES } from "@/lib/constants";
-import { generateId } from "@/lib/calculations";
+import { generateId, formatDate } from "@/lib/calculations";
 
 type Tab = "projects" | "notes" | "tasks";
 
@@ -396,7 +396,7 @@ export default function ContactDetailPage() {
                       {p.address || "No address"} · {p.bu}
                     </div>
                     <div className="text-xs text-muted mt-0.5">
-                      {p.start_date || "—"} → {p.end_date || "—"}
+                      {formatDate(p.start_date)} → {formatDate(p.end_date)}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -629,7 +629,7 @@ export default function ContactDetailPage() {
                   >
                     <div className="text-sm font-semibold">{p.name}</div>
                     <div className="text-xs text-muted">
-                      {p.address || "No address"} · {p.start_date || "—"} · {p.status}
+                      {p.address || "No address"} · {formatDate(p.start_date)} · {p.status}
                     </div>
                   </button>
                 ))

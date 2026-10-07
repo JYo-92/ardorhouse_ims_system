@@ -5,7 +5,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { useProfile } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
-import { formatMoney, formatPercent, projCalc, getAvail, getStaged } from "@/lib/calculations";
+import { formatMoney, formatPercent, projCalc, getAvail, getStaged, formatDate } from "@/lib/calculations";
 import { downloadCSV } from "@/lib/csv";
 
 type ReportType = "pnl" | "usage" | "popular" | "out" | "avail" | "history";
@@ -101,7 +101,7 @@ export default function ReportsPage() {
         const h = ["Project", "Status", "Start", "End", "Rooms", "Pieces"];
         const r = projects.map((p) => {
           const c = projCalc(p, inventory);
-          return [p.name, p.status, p.start_date || "", p.end_date || "", Object.keys(p.rooms || {}).length, c.pieces];
+          return [p.name, p.status, p.start_date ? formatDate(p.start_date) : "", p.end_date ? formatDate(p.end_date) : "", Object.keys(p.rooms || {}).length, c.pieces];
         });
         return { headers: h, rows: r };
       }
