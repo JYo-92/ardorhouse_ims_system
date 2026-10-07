@@ -6,7 +6,7 @@ import { useProfile, useProfiles } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
 import { BUSINESS_UNITS, PROJECT_STATUSES } from "@/lib/constants";
-import { formatMoney, formatPercent, generateId, projCalc } from "@/lib/calculations";
+import { formatMoney, formatPercent, generateId, projCalc, formatDate } from "@/lib/calculations";
 import type { Project } from "@/lib/types";
 import { useRouter } from "next/navigation";
 
@@ -48,15 +48,43 @@ export default function ProjectsPage() {
   const [fContract, setFContract] = useState(0);
   const [fOwner, setFOwner] = useState("");
 
-  const filtered = projects.filter((p) => {
-    if (filterBU && p.bu !== filterBU) return false;
-    if (filterStatus && p.status !== filterStatus) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!p.name.toLowerCase().includes(q) && !(p.address || "").toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+  // Install-date range filter. Stored as YYYY-MM-DD so a plain string compare
+  // is a correct date compare — no Date objects, no timezone surprises.
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  /** Jump the range to a whole month, e.g. "2026-09" -> 09-01 .. 09-30. */
+  function pickMonth(ym: string) {
+    if (!ym) { setFromDate(""); setToDate(""); return; }
+    const [y, m] = ym.split("-").map(Number);
+    const last = new Date(y, m, 0).getDate();
+    setFromDate(`${ym}-01`);
+    setToDate(`${ym}-${String(last).padStart(2, "0")}`);
+  }
+
+  const filtered = projects
+    .filter((p) => {
+      if (filterBU && p.bu !== filterBU) return false;
+      if (filterStatus && p.status !== filterStatus) return false;
+      // A project with no install date can't match a date range.
+      if (fromDate && (!p.start_date || p.start_date < fromDate)) return false;
+      if (toDate && (!p.start_date || p.start_date > toDate)) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!p.name.toLowerCase().includes(q) && !(p.address || "").toLowerCase().includes(q)) return false;
+      }
+      return true;
+    })
+    // Most recent install first; projects with no date sink to the bottom
+    // rather than pretending to be the oldest.
+    .sort((a, b) => {
+      if (!a.start_date && !b.start_date) return 0;
+      if (!a.start_date) return 1;
+      if (!b.start_date) return -1;
+      return b.start_date.localeCompare(a.start_date);
+    });
+
+  const dateFilterOn = Boolean(fromDate || toDate);
 
   function openModal(p?: Project) {
     if (p) {
@@ -184,7 +212,38 @@ export default function ProjectsPage() {
           {PROJECT_STATUSES.map((s) => <option key={s}>{s}</option>)}
         </select>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card" />
+
+        {/* Install-date range. The month picker is the one-click path to
+            "everything we installed in September". */}
+        <input
+          type="month"
+          onChange={(e) => pickMonth(e.target.value)}
+          title="Jump to a whole month"
+          className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card"
+        />
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          Installed
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="py-1.5 px-2 border border-border rounded-lg text-sm bg-card" />
+          to
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="py-1.5 px-2 border border-border rounded-lg text-sm bg-card" />
+        </label>
+        {dateFilterOn && (
+          <button
+            onClick={() => { setFromDate(""); setToDate(""); }}
+            className="py-1.5 px-2.5 text-sm font-semibold rounded-lg bg-card border border-border cursor-pointer hover:bg-background"
+          >
+            Clear dates
+          </button>
+        )}
       </div>
+
+      {dateFilterOn && (
+        <p className="text-xs text-muted -mt-1 mb-3">
+          Showing {filtered.length} project{filtered.length === 1 ? "" : "s"} installed
+          {fromDate ? ` from ${formatDate(fromDate)}` : ""}
+          {toDate ? ` through ${formatDate(toDate)}` : ""}.
+        </p>
+      )}
 
       <div className="bg-card rounded-lg shadow-sm overflow-x-auto">
         {filtered.length === 0 ? (
@@ -211,8 +270,8 @@ export default function ProjectsPage() {
                       {p.address && <><br /><span className="text-muted text-xs">{p.address}</span></>}
                     </td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.bu}</td>
-                    <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.start_date || "—"}</td>
-                    <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.end_date || "—"}</td>
+                    <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.start_date)}</td>
+                    <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.end_date)}</td>
                     {showMoney && (() => {
                       const canSee = isSuperAdmin || p.canSeeFinancials;
                       return (

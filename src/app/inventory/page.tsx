@@ -76,7 +76,7 @@ export default function InventoryPage() {
   // Held as text so the field can be emptied while typing. Coercing on every
   // keystroke made these impossible to clear — deleting the last digit
   // snapped straight back to 1, so a new number could never be typed.
-  const [formQty, setFormQty] = useState("1");
+  const [formQty, setFormQty] = useState("0");
   const [formCost, setFormCost] = useState("0");
   const [formStatus, setFormStatus] = useState("In Warehouse");
   const [formNotes, setFormNotes] = useState("");
@@ -129,7 +129,7 @@ export default function InventoryPage() {
       setFormName("");
       setFormCat("");
       setFormSize("");
-      setFormQty("1");
+      setFormQty("0");
       setFormCost("0");
       setFormStatus("In Warehouse");
       setFormNotes("");

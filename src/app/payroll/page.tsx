@@ -84,6 +84,8 @@ export default function PayrollPage() {
 
   const { miscLabor, mutate: mutateMisc } = useMiscLabor(periodStart, periodEnd);
 
+  const [nameSearch, setNameSearch] = useState("");
+
   // Add-misc-hours form
   const [miscOpen, setMiscOpen] = useState(false);
   const [mName, setMName] = useState("");
@@ -185,7 +187,12 @@ export default function PayrollPage() {
     row.miscTypes.add(m.work_type);
   });
 
-  const rows = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const allRows = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  // Totals below reflect what is on screen, so a search for one person shows
+  // that person's hours and what they are owed — not the whole team's.
+  const rows = nameSearch.trim()
+    ? allRows.filter((r) => r.name.toLowerCase().includes(nameSearch.trim().toLowerCase()))
+    : allRows;
 
   const totalHours = rows.reduce((s, r) => s + r.hours, 0);
   const totalPay = rows.reduce((s, r) => s + r.pay, 0);
@@ -242,6 +249,12 @@ export default function PayrollPage() {
           <span className="text-sm font-semibold">{rangeLabel}</span>
           <span className="text-xs text-muted">Pay date {payDateLabel}</span>
         </div>
+        <input
+          value={nameSearch}
+          onChange={(e) => setNameSearch(e.target.value)}
+          placeholder="Search employee…"
+          className="py-2 px-2.5 border border-border rounded-lg text-sm bg-card focus:outline-none focus:border-accent"
+        />
         <button
           onClick={() => { setMDate(periodEnd); setMiscOpen(true); }}
           className="ml-auto py-2 px-3.5 text-sm font-semibold rounded-lg bg-accent text-white border-none cursor-pointer"
@@ -316,7 +329,11 @@ export default function PayrollPage() {
         {rows.length === 0 ? (
           <div className="py-12 px-5 text-center text-muted">
             <div className="text-3xl">💰</div>
-            <p className="mt-1.5 text-sm">No labor logged in this pay period.</p>
+            <p className="mt-1.5 text-sm">
+              {nameSearch.trim()
+                ? `No hours for "${nameSearch.trim()}" in this pay period.`
+                : "No labor logged in this pay period."}
+            </p>
             <p className="mt-1 text-xs">Add labor on a project (Labor tab) with a date between {periodStart} and {periodEnd}.</p>
           </div>
         ) : (

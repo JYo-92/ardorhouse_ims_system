@@ -4,7 +4,7 @@ import { useProjects, saveProjectInfo } from "@/hooks/use-projects";
 import { useProfile } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
-import { formatMoney, formatPercent, projCalc, getAvail, getStaged, daysUntilEnd } from "@/lib/calculations";
+import { formatMoney, formatPercent, projCalc, getAvail, getStaged, daysUntilEnd, formatDate } from "@/lib/calculations";
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
@@ -93,7 +93,7 @@ export default function DashboardPage() {
                     {p.address && <><br /><span className="text-muted text-xs">{p.address}</span></>}
                   </td>
                   <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.bu}</td>
-                  <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{showProfit ? (p.end_date || "—") : (p.start_date || "—")}</td>
+                  <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{showProfit ? formatDate(p.end_date) : formatDate(p.start_date)}</td>
                   {moneyCols && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? formatMoney(c.invoice) : "—"}</td>}
                   {profitCols && <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${canSee && c.profit < 0 ? "text-red" : canSee ? "text-green" : ""}`}>{canSee ? formatMoney(c.profit) : "—"}</td>}
                   {profitCols && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? marginBadge(c.margin) : "—"}</td>}
@@ -135,7 +135,7 @@ export default function DashboardPage() {
         <div className="mb-4">
           {alerts.map((p) => (
             <div key={p.id} className="bg-[#fef9c3] border border-[#fde68a] rounded-lg py-2.5 px-3.5 mb-2 text-sm flex justify-between items-center">
-              <span>⚠ <strong>{p.name}</strong> ends {p.end_date} ({daysUntilEnd(p)} days)</span>
+              <span>⚠ <strong>{p.name}</strong> ends {formatDate(p.end_date)} ({daysUntilEnd(p)} days)</span>
               <button onClick={() => router.push(`/projects/${p.id}`)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer">View</button>
             </div>
           ))}

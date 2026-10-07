@@ -8,7 +8,7 @@ import { useInventory } from "@/hooks/use-inventory";
 import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/components/layout/toast-provider";
 import { LABOR_ROLES, LABOR_TYPES, PROJECT_STATUSES } from "@/lib/constants";
-import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost, getAllCategories, generateId } from "@/lib/calculations";
+import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost, getAllCategories, generateId, formatDate } from "@/lib/calculations";
 import type { Project, LaborEntry, MiscLine } from "@/lib/types";
 import Link from "next/link";
 
@@ -229,8 +229,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Business Unit</div><div className="text-sm font-semibold mt-0.5">{project.bu}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Address</div><div className="text-sm font-semibold mt-0.5">{project.address || "—"}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Agent</div><div className="text-sm font-semibold mt-0.5">{project.agent || "—"}</div></div>
-        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Start Date</div><div className="text-sm font-semibold mt-0.5">{project.start_date || "—"}</div></div>
-        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">End Date</div><div className="text-sm font-semibold mt-0.5">{project.end_date || "—"}</div></div>
+        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Start Date</div><div className="text-sm font-semibold mt-0.5">{formatDate(project.start_date)}</div></div>
+        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">End Date</div><div className="text-sm font-semibold mt-0.5">{formatDate(project.end_date)}</div></div>
         {canSeeMoney && <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Contract Value</div><div className="text-sm font-semibold mt-0.5">{formatMoney(project.contract_value || project.invoice)}</div></div>}
       </div>
 

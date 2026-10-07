@@ -190,3 +190,16 @@ export function daysUntilEnd(p: Project): number {
     (new Date(p.end_date).getTime() - new Date().getTime()) / 86400000
   );
 }
+
+/**
+ * Render a stored YYYY-MM-DD date as MM-DD-YYYY.
+ *
+ * Deliberately string-only: building a Date from "2026-09-01" parses as UTC
+ * midnight and can display as the previous day in US timezones, which would
+ * silently shift install dates by one.
+ */
+export function formatDate(ymd: string | null | undefined): string {
+  if (!ymd) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  return m ? `${m[2]}-${m[3]}-${m[1]}` : ymd;
+}
