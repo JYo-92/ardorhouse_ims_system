@@ -11,6 +11,21 @@ import { downloadCSV } from "@/lib/csv";
 import type { InventoryItem } from "@/lib/types";
 import Link from "next/link";
 
+/** "" or junk -> null (not measured); otherwise a number. */
+function toDim(v: string): number | null {
+  const t = v.trim();
+  if (t === "") return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** 80 x 36 x 30, skipping whatever hasn't been measured yet. */
+function formatDims(item: { width_in: number | null; depth_in: number | null; height_in: number | null }): string {
+  const parts = [item.width_in, item.depth_in, item.height_in];
+  if (parts.every((p) => p == null)) return "—";
+  return parts.map((p) => (p == null ? "?" : String(p))).join(" × ");
+}
+
 export default function InventoryPage() {
   const { inventory, mutate: mutateInv } = useInventory();
   const { projects } = useProjects();
@@ -76,6 +91,11 @@ export default function InventoryPage() {
   // Held as text so the field can be emptied while typing. Coercing on every
   // keystroke made these impossible to clear — deleting the last digit
   // snapped straight back to 1, so a new number could never be typed.
+  // Dimensions are held as text so "" stays empty rather than becoming 0 —
+  // an unmeasured piece must not claim to be zero inches.
+  const [formW, setFormW] = useState("");
+  const [formD, setFormD] = useState("");
+  const [formH, setFormH] = useState("");
   const [formQty, setFormQty] = useState("0");
   const [formCost, setFormCost] = useState("0");
   const [formStatus, setFormStatus] = useState("In Warehouse");
@@ -119,6 +139,9 @@ export default function InventoryPage() {
       setFormName(item.name);
       setFormCat(item.category);
       setFormSize(item.size || "");
+      setFormW(item.width_in == null ? "" : String(item.width_in));
+      setFormD(item.depth_in == null ? "" : String(item.depth_in));
+      setFormH(item.height_in == null ? "" : String(item.height_in));
       setFormQty(String(item.qty));
       setFormCost(String(item.cost));
       setFormStatus(item.status);
@@ -129,6 +152,7 @@ export default function InventoryPage() {
       setFormName("");
       setFormCat("");
       setFormSize("");
+      setFormW(""); setFormD(""); setFormH("");
       setFormQty("0");
       setFormCost("0");
       setFormStatus("In Warehouse");
@@ -158,6 +182,9 @@ export default function InventoryPage() {
         name: formName.trim(),
         category: formCat.trim(),
         size: formSize || null,
+        width_in: toDim(formW),
+        depth_in: toDim(formD),
+        height_in: toDim(formH),
         qty: Math.max(0, parseInt(formQty, 10) || 0),
         cost: Math.max(0, parseFloat(formCost) || 0),
         status: formStatus,
@@ -216,9 +243,11 @@ export default function InventoryPage() {
       toast("No data", "error");
       return;
     }
-    const headers = ["Name", "Category", "Size", "Total Qty", "Available", "Status", "Cost/Piece", "Notes"];
+    const headers = ["Name", "Category", "Size", "Width (in)", "Depth (in)", "Height (in)", "Total Qty", "Available", "Status", "Cost/Piece", "Notes"];
     const rows = inventory.map((i) => [
-      i.name, i.category, i.size || "", i.qty,
+      i.name, i.category, i.size || "",
+      i.width_in ?? "", i.depth_in ?? "", i.height_in ?? "",
+      i.qty,
       getAvail(i.id, inventory, projects),
       getItemStatus(i, projects), i.cost || 0, i.notes || "",
     ]);
@@ -286,6 +315,7 @@ export default function InventoryPage() {
                 <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Item</th>
                 <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Category</th>
                 <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Size</th>
+                <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border whitespace-nowrap">W × D × H</th>
                 <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Total</th>
                 <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Available</th>
                 <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Status</th>
@@ -334,6 +364,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{item.category}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{item.size || "—"}</td>
+                    <td className="py-2.5 px-3 border-b border-border whitespace-nowrap text-muted">{formatDims(item)}</td>
                     <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{item.qty}</td>
                     <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${shortage ? "text-red" : "text-green"}`}>{avail}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">
@@ -401,6 +432,23 @@ export default function InventoryPage() {
                     onBlur={() => { if (formQty.trim() === "" || Number(formQty) < 0 || Number.isNaN(Number(formQty))) setFormQty("0"); }}
                     className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
                   />
+                </div>
+                <div className="sm:col-span-2 flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-muted">Dimensions (inches)</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" inputMode="decimal" min={0} step="0.5" value={formW}
+                      onChange={(e) => setFormW(e.target.value)} placeholder="W"
+                      className="w-full py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" />
+                    <span className="text-muted text-sm">×</span>
+                    <input type="number" inputMode="decimal" min={0} step="0.5" value={formD}
+                      onChange={(e) => setFormD(e.target.value)} placeholder="D"
+                      className="w-full py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" />
+                    <span className="text-muted text-sm">×</span>
+                    <input type="number" inputMode="decimal" min={0} step="0.5" value={formH}
+                      onChange={(e) => setFormH(e.target.value)} placeholder="H"
+                      className="w-full py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" />
+                  </div>
+                  <span className="text-[.65rem] text-muted">Width × Depth × Height. Leave blank until measured.</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-muted">Cost Per Piece ($)</label>
