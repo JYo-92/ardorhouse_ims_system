@@ -25,6 +25,11 @@ export interface InventoryItem {
   name: string;
   category: string;
   size: string | null;
+  /** Physical dimensions in inches. Null means not measured yet, which is
+   *  meaningfully different from zero. */
+  width_in: number | null;
+  depth_in: number | null;
+  height_in: number | null;
   qty: number;
   cost: number;
   status: string;

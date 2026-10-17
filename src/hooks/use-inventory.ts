@@ -18,6 +18,11 @@ async function fetchInventory(): Promise<InventoryItem[]> {
     name: r.name,
     category: r.category,
     size: r.size,
+    // Postgres numeric arrives as a string; keep null as null so "not
+    // measured" never collapses into 0.
+    width_in: r.width_in == null ? null : Number(r.width_in),
+    depth_in: r.depth_in == null ? null : Number(r.depth_in),
+    height_in: r.height_in == null ? null : Number(r.height_in),
     qty: r.qty,
     cost: Number(r.cost),
     status: r.status,
@@ -47,6 +52,9 @@ export async function saveInventoryItem(item: InventoryItem) {
     name: item.name,
     category: item.category,
     size: item.size || null,
+    width_in: item.width_in,
+    depth_in: item.depth_in,
+    height_in: item.height_in,
     qty: item.qty,
     cost: item.cost,
     status: item.status,
