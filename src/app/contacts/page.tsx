@@ -11,7 +11,7 @@ import {
   setTaskStatus,
 } from "@/hooks/use-contacts";
 import { useToast } from "@/components/layout/toast-provider";
-import { generateId } from "@/lib/calculations";
+import { generateId, formatDate } from "@/lib/calculations";
 import type { Contact, ContactTask, TeamMember } from "@/lib/types";
 
 export default function ContactsPage() {
@@ -312,8 +312,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** All open follow-ups, soonest due first. Undated tasks sort to the bottom
- *  so the top of the list is always what actually needs doing next. */
+/** Open follow-ups. Two ways to work: a grouped list for an overview, and a
+ *  focus mode that serves one task at a time so a run of follow-ups can be
+ *  worked end to end without going back to a contact page between each. */
 function TasksDue({
   tasks,
   contacts,
@@ -327,6 +328,12 @@ function TasksDue({
   onToggle: (taskId: string) => void | Promise<void>;
   onOpenContact: (contactId: string) => void;
 }) {
+  type Filter = "all" | "overdue" | "today" | "upcoming" | "nodate";
+  const [filter, setFilter] = useState<Filter>("all");
+  const [focusMode, setFocusMode] = useState(false);
+  const [focusIdx, setFocusIdx] = useState(0);
+  const [working, setWorking] = useState(false);
+
   const today = new Date().toISOString().slice(0, 10);
 
   const contactName = (cid: string) => {
@@ -343,6 +350,64 @@ function TasksDue({
     return a.due_date.localeCompare(b.due_date);
   });
 
+  const matches = (t: ContactTask, f: Filter) => {
+    if (f === "all") return true;
+    if (f === "overdue") return Boolean(t.due_date && t.due_date < today);
+    if (f === "today") return t.due_date === today;
+    if (f === "upcoming") return Boolean(t.due_date && t.due_date > today);
+    return !t.due_date;
+  };
+
+  const counts = {
+    all: sorted.length,
+    overdue: sorted.filter((t) => matches(t, "overdue")).length,
+    today: sorted.filter((t) => matches(t, "today")).length,
+    upcoming: sorted.filter((t) => matches(t, "upcoming")).length,
+    nodate: sorted.filter((t) => matches(t, "nodate")).length,
+  };
+
+  const queue = sorted.filter((t) => matches(t, filter));
+
+  const filters: { key: Filter; label: string; count: number; tone?: string }[] = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "overdue", label: "Overdue", count: counts.overdue, tone: "text-red" },
+    { key: "today", label: "Due today", count: counts.today },
+    { key: "upcoming", label: "Upcoming", count: counts.upcoming },
+    { key: "nodate", label: "No date", count: counts.nodate },
+  ];
+
+  function changeFilter(f: Filter) {
+    setFilter(f);
+    setFocusIdx(0);
+  }
+
+  const filterBar = (
+    <div className="flex flex-wrap gap-1.5 mb-3">
+      {filters.map((f) => (
+        <button
+          key={f.key}
+          onClick={() => changeFilter(f.key)}
+          disabled={f.count === 0 && f.key !== "all"}
+          className={`py-1.5 px-3 text-xs font-semibold rounded-full border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            filter === f.key
+              ? "bg-accent text-white border-accent"
+              : `bg-card border-border hover:bg-background ${f.tone || ""}`
+          }`}
+        >
+          {f.label} ({f.count})
+        </button>
+      ))}
+      {queue.length > 0 && (
+        <button
+          onClick={() => { setFocusIdx(0); setFocusMode(!focusMode); }}
+          className="ml-auto py-1.5 px-3 text-xs font-semibold rounded-full border border-border bg-card cursor-pointer hover:bg-background"
+        >
+          {focusMode ? "Show list" : "Work through these →"}
+        </button>
+      )}
+    </div>
+  );
+
   if (sorted.length === 0) {
     return (
       <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted">
@@ -351,48 +416,153 @@ function TasksDue({
     );
   }
 
-  const groups: { label: string; items: ContactTask[]; tone?: string }[] = [
-    { label: "Overdue", items: sorted.filter((t) => t.due_date && t.due_date < today), tone: "text-red" },
-    { label: "Due today", items: sorted.filter((t) => t.due_date === today), tone: "text-accent" },
-    { label: "Upcoming", items: sorted.filter((t) => t.due_date && t.due_date > today) },
-    { label: "No date", items: sorted.filter((t) => !t.due_date) },
-  ].filter((g) => g.items.length > 0);
+  // --- Focus mode: one task at a time -------------------------------------
+  if (focusMode) {
+    // Completing a task removes it from the queue, so the same index already
+    // points at the next one. Clamp in case it was the last.
+    const idx = Math.min(focusIdx, Math.max(0, queue.length - 1));
+    const t = queue[idx];
 
-  return (
-    <div className="flex flex-col gap-4">
-      {groups.map((g) => (
-        <div key={g.label}>
-          <h3 className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${g.tone || "text-muted"}`}>
-            {g.label} ({g.items.length})
-          </h3>
-          <div className="bg-card border border-border rounded-xl divide-y divide-border">
-            {g.items.map((t) => (
-              <div key={t.id} className="p-3.5 flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={false}
-                  onChange={() => onToggle(t.id)}
-                  title="Mark done"
-                  className="mt-0.5 w-5 h-5 cursor-pointer shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold">{t.title}</div>
-                  <div className="text-xs text-muted mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                    <button
-                      onClick={() => onOpenContact(t.contact_id)}
-                      className="text-accent bg-transparent border-none cursor-pointer p-0 font-semibold"
-                    >
-                      {contactName(t.contact_id)}
-                    </button>
-                    {t.due_date && <span>Due {t.due_date}</span>}
-                    <span>{memberName(t.assigned_to)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+    if (!t) {
+      return (
+        <div>
+          {filterBar}
+          <div className="bg-card border border-border rounded-xl p-8 text-center">
+            <div className="text-3xl">✓</div>
+            <p className="mt-2 text-sm font-semibold">All clear.</p>
+            <p className="mt-1 text-xs text-muted">
+              Nothing left in {filters.find((f) => f.key === filter)?.label.toLowerCase()}.
+            </p>
+            <button
+              onClick={() => setFocusMode(false)}
+              className="mt-4 py-2 px-3.5 text-sm font-semibold rounded-lg bg-card border border-border cursor-pointer"
+            >
+              Back to list
+            </button>
           </div>
         </div>
-      ))}
+      );
+    }
+
+    const overdue = Boolean(t.due_date && t.due_date < today);
+
+    return (
+      <div>
+        {filterBar}
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex justify-between items-center text-xs text-muted mb-3">
+            <span>{idx + 1} of {queue.length}</span>
+            <button
+              onClick={() => onOpenContact(t.contact_id)}
+              className="text-accent bg-transparent border-none cursor-pointer p-0 font-semibold"
+            >
+              {contactName(t.contact_id)} →
+            </button>
+          </div>
+
+          <h3 className="text-lg font-bold">{t.title}</h3>
+          <div className="text-xs text-muted mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+            {t.due_date && (
+              <span className={overdue ? "text-red font-semibold" : ""}>
+                Due {formatDate(t.due_date)}{overdue ? " · overdue" : ""}
+              </span>
+            )}
+            <span>{memberName(t.assigned_to)}</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-5">
+            <button
+              onClick={async () => {
+                setWorking(true);
+                try { await onToggle(t.id); } finally { setWorking(false); }
+              }}
+              disabled={working}
+              className="py-2.5 px-4 text-sm font-semibold rounded-lg bg-green text-white border-none cursor-pointer disabled:opacity-60"
+            >
+              {working ? "Saving…" : "✓ Done — next"}
+            </button>
+            <button
+              onClick={() => setFocusIdx(Math.min(idx + 1, queue.length - 1))}
+              disabled={idx >= queue.length - 1}
+              className="py-2.5 px-4 text-sm font-semibold rounded-lg bg-card border border-border cursor-pointer disabled:opacity-40"
+            >
+              Skip →
+            </button>
+            <button
+              onClick={() => setFocusIdx(Math.max(0, idx - 1))}
+              disabled={idx === 0}
+              className="py-2.5 px-3 text-sm font-semibold rounded-lg bg-card border border-border cursor-pointer disabled:opacity-40"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- List mode ----------------------------------------------------------
+  const groups: { label: string; items: ContactTask[]; tone?: string }[] =
+    filter === "all"
+      ? [
+          { label: "Overdue", items: sorted.filter((t) => matches(t, "overdue")), tone: "text-red" },
+          { label: "Due today", items: sorted.filter((t) => matches(t, "today")), tone: "text-accent" },
+          { label: "Upcoming", items: sorted.filter((t) => matches(t, "upcoming")) },
+          { label: "No date", items: sorted.filter((t) => matches(t, "nodate")) },
+        ].filter((g) => g.items.length > 0)
+      : [{ label: filters.find((f) => f.key === filter)!.label, items: queue }];
+
+  return (
+    <div>
+      {filterBar}
+      {queue.length === 0 ? (
+        <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted">
+          Nothing in this group.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {groups.map((g) => (
+            <div key={g.label}>
+              <h3 className={`text-xs font-semibold uppercase tracking-wider mb-1.5 ${g.tone || "text-muted"}`}>
+                {g.label} ({g.items.length})
+              </h3>
+              <div className="bg-card border border-border rounded-xl divide-y divide-border">
+                {g.items.map((t) => {
+                  const overdue = Boolean(t.due_date && t.due_date < today);
+                  return (
+                    <div key={t.id} className="p-3.5 flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        onChange={() => onToggle(t.id)}
+                        title="Mark done"
+                        className="mt-0.5 w-5 h-5 cursor-pointer shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold">{t.title}</div>
+                        <div className="text-xs text-muted mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                          <button
+                            onClick={() => onOpenContact(t.contact_id)}
+                            className="text-accent bg-transparent border-none cursor-pointer p-0 font-semibold"
+                          >
+                            {contactName(t.contact_id)}
+                          </button>
+                          {t.due_date && (
+                            <span className={overdue ? "text-red font-semibold" : ""}>
+                              Due {formatDate(t.due_date)}
+                            </span>
+                          )}
+                          <span>{memberName(t.assigned_to)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
