@@ -37,6 +37,9 @@ export function useProfile() {
     isSuperAdmin: role === "super_admin",
     // Payroll is visible to super admins and managers.
     canSeePayroll: role === "super_admin" || role === "manager",
+    // Adding/editing/deleting inventory, photos and categories. Designers
+    // only pick furniture into their projects.
+    canEditInventory: role === "super_admin" || role === "manager",
     error,
     isLoading,
     mutate,

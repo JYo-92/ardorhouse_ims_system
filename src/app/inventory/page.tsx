@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useInventory, saveInventoryItem, deleteInventoryItem, uploadImage } from "@/hooks/use-inventory";
 import { useProjects } from "@/hooks/use-projects";
 import { useCategories, addCategory, deleteCategory } from "@/hooks/use-categories";
+import { useProfile } from "@/hooks/use-profile";
 import { useToast } from "@/components/layout/toast-provider";
 import { SIZES } from "@/lib/constants";
 import { generateId, getAvail, getStaged, getItemStatus, getStagedByProject, getAllCategories, countItemsInCategory } from "@/lib/calculations";
@@ -30,6 +31,7 @@ export default function InventoryPage() {
   const { inventory, mutate: mutateInv } = useInventory();
   const { stockProjects: projects } = useProjects();
   const { categories: dbCategories, mutate: mutateCats } = useCategories();
+  const { canEditInventory } = useProfile();
   const { toast } = useToast();
 
   const [filterCat, setFilterCat] = useState("");
@@ -269,12 +271,16 @@ export default function InventoryPage() {
       <div className="flex justify-between items-center flex-wrap gap-2.5 mb-4">
         <h2 className="text-base font-semibold">All Items</h2>
         <div className="flex gap-2">
-          <button onClick={() => openModal()} className="inline-flex items-center gap-1.5 py-2 px-4 border-none rounded-lg text-sm font-semibold cursor-pointer bg-accent text-white hover:bg-accent2 transition-colors">
-            + Add Item
-          </button>
-          <button onClick={() => { setNewCatName(""); setCatModalOpen(true); }} className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background transition-colors">
-            ⚙ Manage Categories
-          </button>
+          {canEditInventory && (
+            <>
+              <button onClick={() => openModal()} className="inline-flex items-center gap-1.5 py-2 px-4 border-none rounded-lg text-sm font-semibold cursor-pointer bg-accent text-white hover:bg-accent2 transition-colors">
+                + Add Item
+              </button>
+              <button onClick={() => { setNewCatName(""); setCatModalOpen(true); }} className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background transition-colors">
+                ⚙ Manage Categories
+              </button>
+            </>
+          )}
           <button onClick={exportCSV} className="inline-flex items-center gap-1.5 py-2 px-4 rounded-lg text-sm font-semibold cursor-pointer bg-card text-foreground border border-border hover:bg-background transition-colors">
             ⬇ Export CSV
           </button>
@@ -378,8 +384,12 @@ export default function InventoryPage() {
                       <span className={`inline-block py-0.5 px-2 rounded-full text-xs font-semibold ${statusBadgeClass(st)}`}>{st}</span>
                     </td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">
-                      <button onClick={() => openModal(item)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background mr-1">Edit</button>
-                      <button onClick={() => handleDelete(item.id)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-red text-white border-none cursor-pointer hover:bg-[#b91c1c]">Del</button>
+                      {canEditInventory && (
+                        <>
+                          <button onClick={() => openModal(item)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-card text-foreground border border-border cursor-pointer hover:bg-background mr-1">Edit</button>
+                          <button onClick={() => handleDelete(item.id)} className="py-1 px-2.5 text-xs font-semibold rounded-lg bg-red text-white border-none cursor-pointer hover:bg-[#b91c1c]">Del</button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );
