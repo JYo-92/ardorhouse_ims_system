@@ -47,6 +47,13 @@ export default function ProjectsPage() {
   const [fDeposit, setFDeposit] = useState(0);
   const [fContract, setFContract] = useState(0);
   const [fOwner, setFOwner] = useState("");
+  const [fDesigner, setFDesigner] = useState("");
+
+  const designers = profiles.filter((u) => u.role === "user");
+  const designerName = (id: string | null) => {
+    const u = id ? profiles.find((x) => x.id === id) : null;
+    return u ? u.full_name || u.email : "";
+  };
 
   // Install-date range filter. Stored as YYYY-MM-DD so a plain string compare
   // is a correct date compare — no Date objects, no timezone surprises.
@@ -101,12 +108,13 @@ export default function ProjectsPage() {
       setFDeposit(p.deposit);
       setFContract(p.contract_value || 0);
       setFOwner(p.contract_owner_id || "");
+      setFDesigner(p.designer_id || "");
     } else {
       setEditProj(null);
       setFName(""); setFAddr(""); setFBU(""); setFAgent("");
       setFStatus("Scheduled"); setFStart(""); setFEnd("");
       setFNotes(""); setFInvoice(0); setFDeposit(0);
-      setFContract(0); setFOwner("");
+      setFContract(0); setFOwner(""); setFDesigner("");
     }
     setFEndManual(false);
     setModalOpen(true);
@@ -134,9 +142,10 @@ export default function ProjectsPage() {
       const base = { name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null };
       const p: Project = editProj
         ? { ...editProj, ...base }
-        : { id: generateId(), ...base, rooms: {}, canSeeFinancials: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
-      // Operational data (any authenticated user).
-      await saveProjectInfo(p);
+        : { id: generateId(), ...base, rooms: {}, designer_id: null, canSeeFinancials: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
+      // Operational data. Only super admins pick the designer; for a designer
+      // creating a project, the database assigns it to them.
+      await saveProjectInfo(p, isSuperAdmin ? { designerId: fDesigner || null } : undefined);
       // Financials (super admins only here — assigns owner + revenue).
       if (isSuperAdmin) {
         const finPatch = { invoice: fInvoice, deposit: fDeposit, contract_value: fContract, contract_owner_id: fOwner || null };
@@ -255,7 +264,7 @@ export default function ProjectsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Project", "Business Unit", "Start", "End", ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
+                {["Project", "Business Unit", ...(isSuperAdmin ? ["Designer"] : []), "Start", "End", ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
                   <th key={i} className={`bg-background py-2.5 px-3 font-semibold text-xs uppercase tracking-wider text-muted border-b border-border whitespace-nowrap ${["Invoice", "Profit", "Margin"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
                 ))}
               </tr>
@@ -270,6 +279,9 @@ export default function ProjectsPage() {
                       {p.address && <><br /><span className="text-muted text-xs">{p.address}</span></>}
                     </td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.bu}</td>
+                    {isSuperAdmin && (
+                      <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{designerName(p.designer_id) || <span className="text-muted">Unassigned</span>}</td>
+                    )}
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.start_date)}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.end_date)}</td>
                     {showMoney && (() => {
@@ -312,6 +324,9 @@ export default function ProjectsPage() {
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Property Address</label><input value={fAddr} onChange={(e) => setFAddr(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Business Unit *</label><select value={fBU} onChange={(e) => setFBU(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Select...</option>{BUSINESS_UNITS.map((b) => <option key={b}>{b}</option>)}</select></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Agent Contact</label><input value={fAgent} onChange={(e) => setFAgent(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+                  {isSuperAdmin && (
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Assigned Designer</label><select value={fDesigner} onChange={(e) => setFDesigner(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Unassigned (admins only)</option>{designers.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}</select></div>
+                  )}
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Status</label><select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent">{PROJECT_STATUSES.map((s) => <option key={s}>{s}</option>)}</select></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Start Date</label><input type="date" value={fStart} onChange={(e) => handleStartChange(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">End Date</label><input type="date" value={fEnd} onChange={(e) => { setFEnd(e.target.value); setFEndManual(true); }} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>

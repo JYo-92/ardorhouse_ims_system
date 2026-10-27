@@ -16,7 +16,7 @@ type Tab = "rooms" | "labor" | "misc" | "pnl";
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { projects, mutate } = useProjects();
+  const { projects, stockProjects, mutate } = useProjects();
   const { isSuperAdmin, role } = useProfile();
   const { profiles } = useProfiles(isSuperAdmin);
   const { inventory } = useInventory();
@@ -482,7 +482,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 {(() => {
                   const q = assignSearch.trim().toLowerCase();
                   const list = inventory.filter((i) => {
-                    if (getAvail(i.id, inventory, projects) <= 0 && !(i.id in assignSelections)) return false;
+                    if (getAvail(i.id, inventory, stockProjects) <= 0 && !(i.id in assignSelections)) return false;
                     if (assignCategory && i.category !== assignCategory) return false;
                     if (!q) return true;
                     return i.name.toLowerCase().includes(q) || (i.category || "").toLowerCase().includes(q);
@@ -491,7 +491,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     return <div className="col-span-full py-8 text-center text-muted text-sm">No available items match.</div>;
                   }
                   return list.map((i) => {
-                    const avail = getAvail(i.id, inventory, projects);
+                    const avail = getAvail(i.id, inventory, stockProjects);
                     const selected = i.id in assignSelections;
                     const qty = assignSelections[i.id] || 1;
                     const thumb = i.images?.[0];
