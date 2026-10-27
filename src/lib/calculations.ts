@@ -85,8 +85,8 @@ export function getStaged(
 export function getStagedByProject(
   itemId: string,
   projects: Project[]
-): { projectId: string; projectName: string; qty: number }[] {
-  const out: { projectId: string; projectName: string; qty: number }[] = [];
+): { projectId: string; projectName: string; qty: number; hidden: boolean }[] {
+  const out: { projectId: string; projectName: string; qty: number; hidden: boolean }[] = [];
   projects.forEach((p) => {
     // Completed projects don't keep inventory locked.
     if (p.status === "Completed") return;
@@ -97,7 +97,7 @@ export function getStagedByProject(
         if (a.itemId === itemId) qty += a.qty;
       });
     });
-    if (qty > 0) out.push({ projectId: p.id, projectName: p.name, qty });
+    if (qty > 0) out.push({ projectId: p.id, projectName: p.name, qty, hidden: !!p.hidden });
   });
   return out;
 }

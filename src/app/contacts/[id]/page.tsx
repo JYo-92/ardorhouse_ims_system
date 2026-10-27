@@ -159,6 +159,7 @@ export default function ContactDetailPage() {
         notes: null,
         status: pStatus,
         rooms: {},
+        designer_id: null,
         canSeeFinancials: false,
         invoice: 0,
         deposit: 0,

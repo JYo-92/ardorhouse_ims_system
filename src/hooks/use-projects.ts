@@ -3,15 +3,16 @@
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 import { sbPost, sbDelete } from "@/lib/supabase/rest";
-import type { Project, ProjectFinancials } from "@/lib/types";
+import type { Project, ProjectFinancials, RoomAssignment } from "@/lib/types";
 
-async function fetchProjects(): Promise<Project[]> {
+async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Project[] }> {
   const supabase = createClient();
 
-  // Operational data — readable by every authenticated user.
+  // Operational data — RLS returns every project to admins, managers and
+  // installers, and only their assigned projects to designers.
   const { data: rows, error } = await supabase
     .from("projects")
-    .select("id,name,address,bu,agent,start_date,end_date,notes,status,rooms,created_at,updated_at")
+    .select("id,name,address,bu,agent,start_date,end_date,notes,status,rooms,designer_id,created_at,updated_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -22,11 +23,16 @@ async function fetchProjects(): Promise<Project[]> {
     .select("*");
   if (finErr) throw finErr;
 
+  // Furniture out on every open job, including ones this user can't see, so
+  // availability stays honest for designers. Item ids and quantities only.
+  const { data: alloc, error: allocErr } = await supabase.rpc("staged_allocations");
+  if (allocErr) throw allocErr;
+
   const finMap = new Map<string, ProjectFinancials>(
     (fin || []).map((f) => [f.project_id as string, f as ProjectFinancials])
   );
 
-  return (rows || []).map((r): Project => {
+  const projects = (rows || []).map((r): Project => {
     const f = finMap.get(r.id);
     return {
       id: r.id,
@@ -39,6 +45,7 @@ async function fetchProjects(): Promise<Project[]> {
       notes: r.notes,
       status: r.status || "Scheduled",
       rooms: r.rooms || {},
+      designer_id: r.designer_id ?? null,
       canSeeFinancials: !!f,
       invoice: f ? Number(f.invoice) : 0,
       deposit: f ? Number(f.deposit) : 0,
@@ -48,15 +55,52 @@ async function fetchProjects(): Promise<Project[]> {
       misc_lines: f?.misc_lines || [],
     };
   });
+
+  const visible = new Set(projects.map((p) => p.id));
+  const placeholders = ((alloc || []) as { project_id: string; status: string | null; rooms: Record<string, RoomAssignment[]> | null }[])
+    .filter((a) => !visible.has(a.project_id))
+    .map((a): Project => ({
+      id: a.project_id,
+      name: "Another project",
+      address: null,
+      bu: "",
+      agent: null,
+      start_date: null,
+      end_date: null,
+      notes: null,
+      status: a.status || "Scheduled",
+      rooms: a.rooms || {},
+      designer_id: null,
+      hidden: true,
+      canSeeFinancials: false,
+      invoice: 0,
+      deposit: 0,
+      contract_value: 0,
+      contract_owner_id: null,
+      labor: [],
+      misc_lines: [],
+    }));
+
+  return { projects, stockProjects: [...projects, ...placeholders] };
 }
 
+/** `projects` is what the user may see and list. `stockProjects` adds
+ *  placeholders for hidden open jobs — pass it to the inventory availability
+ *  helpers (getAvail, getStaged, …), never render it as a project list. */
 export function useProjects() {
   const { data, error, isLoading, mutate } = useSWR("projects", fetchProjects);
-  return { projects: data || [], error, isLoading, mutate };
+  return {
+    projects: data?.projects || [],
+    stockProjects: data?.stockProjects || [],
+    error,
+    isLoading,
+    mutate,
+  };
 }
 
-/** Operational fields only — any authenticated user may write these. */
-export async function saveProjectInfo(p: Project) {
+/** Operational fields only. Pass `designerId` (super admins) to change the
+ *  assignment; leave it out and the current assignment is kept. */
+export async function saveProjectInfo(p: Project, opts?: { designerId: string | null }) {
   await sbPost("projects", {
     id: p.id,
     name: p.name,
@@ -68,6 +112,7 @@ export async function saveProjectInfo(p: Project) {
     notes: p.notes || null,
     status: p.status || "Scheduled",
     rooms: p.rooms || {},
+    ...(opts ? { designer_id: opts.designerId } : {}),
     updated_at: new Date().toISOString(),
   });
 }

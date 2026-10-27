@@ -8,7 +8,7 @@ import { formatMoney, formatPercent, projCalc, getAvail, getStaged, daysUntilEnd
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
-  const { projects, mutate } = useProjects();
+  const { projects, stockProjects, mutate } = useProjects();
   const { isSuperAdmin } = useProfile();
   const { inventory } = useInventory();
   const { toast } = useToast();
@@ -25,8 +25,8 @@ export default function DashboardPage() {
   const totalItems = inventory.reduce((s, i) => s + i.qty, 0);
   let stagedCount = 0, availableCount = 0, shortages = 0;
   inventory.forEach((i) => {
-    const a = getAvail(i.id, inventory, projects);
-    const st = getStaged(i.id, projects);
+    const a = getAvail(i.id, inventory, stockProjects);
+    const st = getStaged(i.id, stockProjects);
     stagedCount += st;
     availableCount += a;
     if (a === 0 && i.qty > 0) shortages++;

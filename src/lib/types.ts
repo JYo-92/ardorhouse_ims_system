@@ -51,6 +51,12 @@ export interface Project {
   notes: string | null;
   status: string;
   rooms: Record<string, RoomAssignment[]>;
+  /** Assigned designer. Designers only see projects assigned to them; this is
+   *  separate from contract_owner_id, which also reveals the money. */
+  designer_id: string | null;
+  /** True for a placeholder standing in for a project the viewer can't see.
+   *  Only used for inventory availability — never listed. */
+  hidden?: boolean;
   // --- Financial fields live in project_financials (RLS-protected). They are
   // populated only when the current user is a super admin or the project's
   // contract owner; otherwise they are zero/empty and canSeeFinancials=false. ---

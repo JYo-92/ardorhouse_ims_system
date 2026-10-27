@@ -28,7 +28,7 @@ function formatDims(item: { width_in: number | null; depth_in: number | null; he
 
 export default function InventoryPage() {
   const { inventory, mutate: mutateInv } = useInventory();
-  const { projects } = useProjects();
+  const { stockProjects: projects } = useProjects();
   const { categories: dbCategories, mutate: mutateCats } = useCategories();
   const { toast } = useToast();
 
@@ -336,7 +336,14 @@ export default function InventoryPage() {
                       {stagedIn.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
                           <span className="text-[.65rem] text-muted self-center">Staged in:</span>
-                          {stagedIn.map((s) => (
+                          {stagedIn.map((s) => s.hidden ? (
+                            <span
+                              key={s.projectId}
+                              className="inline-block py-0.5 px-1.5 rounded bg-gray-100 text-gray-600 text-[.65rem] font-semibold"
+                            >
+                              {s.projectName}{s.qty > 1 ? ` ×${s.qty}` : ""}
+                            </span>
+                          ) : (
                             <Link
                               key={s.projectId}
                               href={`/projects/${s.projectId}`}
