@@ -245,13 +245,14 @@ export default function InventoryPage() {
       toast("No data", "error");
       return;
     }
-    const headers = ["Name", "Category", "Size", "Width (in)", "Depth (in)", "Height (in)", "Total Qty", "Available", "Status", "Cost/Piece", "Notes"];
+    // Cost is money — designers get the export without it.
+    const headers = ["Name", "Category", "Size", "Width (in)", "Depth (in)", "Height (in)", "Total Qty", "Available", "Status", ...(canEditInventory ? ["Cost/Piece"] : []), "Notes"];
     const rows = inventory.map((i) => [
       i.name, i.category, i.size || "",
       i.width_in ?? "", i.depth_in ?? "", i.height_in ?? "",
       i.qty,
       getAvail(i.id, inventory, projects),
-      getItemStatus(i, projects), i.cost || 0, i.notes || "",
+      getItemStatus(i, projects), ...(canEditInventory ? [i.cost || 0] : []), i.notes || "",
     ]);
     downloadCSV("ardor-inventory", headers, rows);
   }
