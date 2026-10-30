@@ -12,7 +12,7 @@ async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Pr
   // installers, and only their assigned projects to designers.
   const { data: rows, error } = await supabase
     .from("projects")
-    .select("id,name,address,bu,agent,start_date,end_date,notes,status,rooms,designer_id,created_at,updated_at")
+    .select("id,name,address,bu,agent,start_date,end_date,notes,status,rooms,designer_id,salesperson_id,details,created_at,updated_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -46,6 +46,8 @@ async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Pr
       status: r.status || "Scheduled",
       rooms: r.rooms || {},
       designer_id: r.designer_id ?? null,
+      salesperson_id: r.salesperson_id ?? null,
+      details: r.details || {},
       canSeeFinancials: !!f,
       invoice: f ? Number(f.invoice) : 0,
       deposit: f ? Number(f.deposit) : 0,
@@ -71,6 +73,8 @@ async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Pr
       status: a.status || "Scheduled",
       rooms: a.rooms || {},
       designer_id: null,
+      salesperson_id: null,
+      details: {},
       hidden: true,
       canSeeFinancials: false,
       invoice: 0,
@@ -98,9 +102,12 @@ export function useProjects() {
   };
 }
 
-/** Operational fields only. Pass `designerId` (super admins) to change the
- *  assignment; leave it out and the current assignment is kept. */
-export async function saveProjectInfo(p: Project, opts?: { designerId: string | null }) {
+/** Operational fields only. Pass `people` (admins and managers) to change the
+ *  stager responsible and salesperson; leave it out and they are kept. */
+export async function saveProjectInfo(
+  p: Project,
+  people?: { stagerId: string | null; salespersonId: string | null }
+) {
   await sbPost("projects", {
     id: p.id,
     name: p.name,
@@ -112,7 +119,8 @@ export async function saveProjectInfo(p: Project, opts?: { designerId: string | 
     notes: p.notes || null,
     status: p.status || "Scheduled",
     rooms: p.rooms || {},
-    ...(opts ? { designer_id: opts.designerId } : {}),
+    details: p.details || {},
+    ...(people ? { designer_id: people.stagerId, salesperson_id: people.salespersonId } : {}),
     updated_at: new Date().toISOString(),
   });
 }

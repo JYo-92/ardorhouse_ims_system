@@ -29,7 +29,7 @@ export default function ReportsPage() {
   const { headers, rows } = useMemo(() => {
     switch (reportType) {
       case "pnl": {
-        const h = ["Project", "Business Unit", "Invoice", "Total Cost", "Gross Profit", "Margin %"];
+        const h = ["Project", "Job Type", "Invoice", "Total Cost", "Gross Profit", "Margin %"];
         const r = projects.map((p) => {
           const c = projCalc(p, inventory);
           return [p.name, p.bu, c.invoice, c.totalCost, c.profit, Number(c.margin.toFixed(1))];
