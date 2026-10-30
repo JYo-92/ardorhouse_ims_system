@@ -51,9 +51,14 @@ export interface Project {
   notes: string | null;
   status: string;
   rooms: Record<string, RoomAssignment[]>;
-  /** Assigned designer. Designers only see projects assigned to them; this is
-   *  separate from contract_owner_id, which also reveals the money. */
+  /** Stager responsible (column name predates the label). Designers only see
+   *  projects where they are the stager or salesperson; separate from
+   *  contract_owner_id, which also reveals the money. */
   designer_id: string | null;
+  /** Who sold the job. Gets "Sold" revenue credit; can also see the project. */
+  salesperson_id: string | null;
+  /** Job-type-specific answers keyed by JOB_TYPE_FIELDS[bu][].key. No money. */
+  details: Record<string, string | number>;
   /** True for a placeholder standing in for a project the viewer can't see.
    *  Only used for inventory availability — never listed. */
   hidden?: boolean;

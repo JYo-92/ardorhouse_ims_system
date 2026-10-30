@@ -7,7 +7,8 @@ import { useProfile, useProfiles } from "@/hooks/use-profile";
 import { useInventory } from "@/hooks/use-inventory";
 import { useCategories } from "@/hooks/use-categories";
 import { useToast } from "@/components/layout/toast-provider";
-import { LABOR_ROLES, LABOR_TYPES, PROJECT_STATUSES } from "@/lib/constants";
+import { LABOR_ROLES, LABOR_TYPES, JOB_TYPE_FIELDS, FURNITURE_JOB_TYPES, statusesFor, type JobType } from "@/lib/constants";
+import { useTeamMembers } from "@/hooks/use-contacts";
 import { formatMoney, formatPercent, projCalc, getAvail, getLaborHours, getLaborCost, getAllCategories, generateId, formatDate } from "@/lib/calculations";
 import type { Project, LaborEntry, MiscLine } from "@/lib/types";
 import Link from "next/link";
@@ -19,6 +20,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { projects, stockProjects, mutate } = useProjects();
   const { isSuperAdmin, role } = useProfile();
   const { profiles } = useProfiles(isSuperAdmin);
+  const { team } = useTeamMembers();
   const { inventory } = useInventory();
   const { categories: dbCategories } = useCategories();
   const { toast } = useToast();
@@ -193,8 +195,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     await saveFin({ misc_lines });
   }
 
+  const usesFurniture = FURNITURE_JOB_TYPES.includes(project.bu);
+  const jobFields = JOB_TYPE_FIELDS[project.bu as JobType] || [];
+  const personName = (pid: string | null) => {
+    if (!pid) return "—";
+    return team.find((t) => t.id === pid)?.full_name || profiles.find((u) => u.id === pid)?.full_name || "—";
+  };
+
   const tabs: { key: Tab; label: string }[] = [
-    { key: "rooms", label: "Rooms & Furniture" },
+    ...(usesFurniture ? ([{ key: "rooms", label: "Rooms & Furniture" }] as { key: Tab; label: string }[]) : []),
     ...(canEditLabor ? ([{ key: "labor", label: "Labor" }] as { key: Tab; label: string }[]) : []),
     ...(canSeeMoney
       ? ([
@@ -203,8 +212,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         ] as { key: Tab; label: string }[])
       : []),
   ];
-  // If a non-privileged user lands on a financial tab, fall back to rooms.
-  const currentTab: Tab = tabs.some((t) => t.key === activeTab) ? activeTab : "rooms";
+  // If a user lands on a tab they can't see (financial, or rooms on a job
+  // type without furniture), fall back to the first one they can.
+  const currentTab: Tab | undefined = tabs.some((t) => t.key === activeTab) ? activeTab : tabs[0]?.key;
 
   const statusCls = project.status === "Active" ? "bg-[#dcfce7] text-[#16a34a]" : project.status === "Scheduled" ? "bg-[#e0e7ff] text-[#4338ca]" : project.status === "De-stage Scheduled" ? "bg-[#fef9c3] text-[#ca8a04]" : "bg-[#f3e8ff] text-[#7c3aed]";
 
@@ -220,18 +230,26 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           className={`py-1 px-2 rounded-full text-xs font-semibold border-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30 ${statusCls}`}
           title="Change status"
         >
-          {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {statusesFor(project.bu).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
       {/* Info Grid */}
       <div className="grid grid-cols-3 gap-2.5 mb-4 max-sm:grid-cols-2">
-        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Business Unit</div><div className="text-sm font-semibold mt-0.5">{project.bu}</div></div>
+        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Job Type</div><div className="text-sm font-semibold mt-0.5">{project.bu}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Address</div><div className="text-sm font-semibold mt-0.5">{project.address || "—"}</div></div>
-        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Agent</div><div className="text-sm font-semibold mt-0.5">{project.agent || "—"}</div></div>
+        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">{project.bu === "Staging" ? "Agent" : "Client / Contact"}</div><div className="text-sm font-semibold mt-0.5">{project.agent || "—"}</div></div>
+        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Salesperson</div><div className="text-sm font-semibold mt-0.5">{personName(project.salesperson_id)}</div></div>
+        <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Stager Responsible</div><div className="text-sm font-semibold mt-0.5">{personName(project.designer_id)}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Start Date</div><div className="text-sm font-semibold mt-0.5">{formatDate(project.start_date)}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">End Date</div><div className="text-sm font-semibold mt-0.5">{formatDate(project.end_date)}</div></div>
         {canSeeMoney && <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Contract Value</div><div className="text-sm font-semibold mt-0.5">{formatMoney(project.contract_value || project.invoice)}</div></div>}
+        {jobFields.map((f) => (
+          <div key={f.key} className={f.type === "textarea" ? "col-span-3 max-sm:col-span-2" : ""}>
+            <div className="text-[.68rem] text-muted uppercase tracking-wider">{f.label}</div>
+            <div className="text-sm font-semibold mt-0.5 whitespace-pre-wrap">{project.details?.[f.key] ?? "—"}</div>
+          </div>
+        ))}
       </div>
 
       {/* Tabs */}

@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useProjects, saveProjectInfo } from "@/hooks/use-projects";
 import { useProfile } from "@/hooks/use-profile";
+import { useTeamMembers } from "@/hooks/use-contacts";
+import { RevenueTab } from "@/components/dashboard/revenue-tab";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
 import { formatMoney, formatPercent, projCalc, getAvail, getStaged, daysUntilEnd, formatDate } from "@/lib/calculations";
@@ -11,8 +14,12 @@ export default function DashboardPage() {
   const { projects, stockProjects, mutate } = useProjects();
   const { isSuperAdmin } = useProfile();
   const { inventory } = useInventory();
+  const { team } = useTeamMembers();
   const { toast } = useToast();
   const router = useRouter();
+  // Revenue by person needs every project's money, so super admins only.
+  const [tab, setTab] = useState<"overview" | "revenue">("overview");
+  const showRevenue = isSuperAdmin && tab === "revenue";
 
   // Money is shown to super admins and to contract owners (their own rows).
   const canSeeMoney = isSuperAdmin || projects.some((p) => p.canSeeFinancials);
@@ -71,7 +78,7 @@ export default function DashboardPage() {
         <thead>
           <tr>
             <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Project</th>
-            <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Business Unit</th>
+            <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Job Type</th>
             <th className="bg-background py-2.5 px-3 text-left font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">{showProfit ? "End Date" : "Start Date"}</th>
             {moneyCols && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Invoice</th>}
             {profitCols && <th className="bg-background py-2.5 px-3 text-right font-semibold text-xs uppercase tracking-wider text-muted border-b border-border">Profit</th>}
@@ -86,6 +93,10 @@ export default function DashboardPage() {
             items.map((p) => {
               const c = projCalc(p, inventory);
               const canSee = isSuperAdmin || p.canSeeFinancials;
+              // Only staging gets de-staged; other active jobs go straight to Completed.
+              const skipDestage = actionStatus === "De-stage Scheduled" && p.bu !== "Staging";
+              const rowStatus = skipDestage ? "Completed" : actionStatus;
+              const rowLabel = skipDestage ? "Complete" : actionLabel;
               return (
                 <tr key={p.id} className="hover:bg-[#f9fafb] cursor-pointer" onClick={() => router.push(`/projects/${p.id}`)}>
                   <td className="py-2.5 px-3 border-b border-border">
@@ -97,10 +108,10 @@ export default function DashboardPage() {
                   {moneyCols && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? formatMoney(c.invoice) : "—"}</td>}
                   {profitCols && <td className={`py-2.5 px-3 border-b border-border text-right font-semibold whitespace-nowrap ${canSee && c.profit < 0 ? "text-red" : canSee ? "text-green" : ""}`}>{canSee ? formatMoney(c.profit) : "—"}</td>}
                   {profitCols && <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{canSee ? marginBadge(c.margin) : "—"}</td>}
-                  {showAction && actionLabel && actionStatus && (
+                  {showAction && rowLabel && rowStatus && (
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => quickStatus(p.id, actionStatus)} className={`py-1 px-2.5 text-xs font-semibold rounded-lg border-none cursor-pointer text-white ${actionStatus === "Active" || actionStatus === "Completed" ? "bg-green hover:bg-[#15803d]" : "bg-[#fef9c3] !text-[#ca8a04]"}`}>
-                        {actionLabel}
+                      <button onClick={() => quickStatus(p.id, rowStatus)} className={`py-1 px-2.5 text-xs font-semibold rounded-lg border-none cursor-pointer text-white ${rowStatus === "Active" || rowStatus === "Completed" ? "bg-green hover:bg-[#15803d]" : "bg-[#fef9c3] !text-[#ca8a04]"}`}>
+                        {rowLabel}
                       </button>
                     </td>
                   )}
@@ -118,6 +129,20 @@ export default function DashboardPage() {
     <div>
       <h1 className="text-xl font-semibold mb-5">Dashboard</h1>
 
+      {isSuperAdmin && (
+        <div className="flex gap-0 border-b-2 border-border mb-5">
+          {([["overview", "Overview"], ["revenue", "Revenue by Person"]] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)} className={`py-2 px-4 text-sm font-semibold cursor-pointer -mb-[2px] transition-colors bg-transparent border-0 border-b-2 border-solid ${tab === k ? "text-accent border-b-accent" : "text-muted hover:text-foreground border-b-transparent"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {showRevenue ? (
+        <RevenueTab projects={projects} team={team} />
+      ) : (
+      <>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5 mb-6">
         <Card label="Scheduled" value={scheduled.length} />
         <Card label="Active" value={active.length} color="text-green" />
@@ -146,6 +171,8 @@ export default function DashboardPage() {
       <Section title="Active Projects"><ProjectTable items={active} showProfit={true} actionLabel="De-stage" actionStatus="De-stage Scheduled" /></Section>
       <Section title="De-stage Scheduled"><ProjectTable items={destage} showProfit={true} actionLabel="Complete" actionStatus="Completed" /></Section>
       <Section title="Completed Projects"><ProjectTable items={completed} showProfit={true} showAction={false} /></Section>
+      </>
+      )}
     </div>
   );
 }

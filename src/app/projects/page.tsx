@@ -3,17 +3,22 @@
 import { useState } from "react";
 import { useProjects, saveProjectInfo, createFinancials, updateFinancials, deleteProject } from "@/hooks/use-projects";
 import { useProfile, useProfiles } from "@/hooks/use-profile";
+import { useTeamMembers } from "@/hooks/use-contacts";
 import { useInventory } from "@/hooks/use-inventory";
 import { useToast } from "@/components/layout/toast-provider";
-import { BUSINESS_UNITS, PROJECT_STATUSES } from "@/lib/constants";
+import { BUSINESS_UNITS, PROJECT_STATUSES, JOB_TYPE_FIELDS, statusesFor, type JobType } from "@/lib/constants";
 import { formatMoney, formatPercent, generateId, projCalc, formatDate } from "@/lib/calculations";
 import type { Project } from "@/lib/types";
 import { useRouter } from "next/navigation";
 
 export default function ProjectsPage() {
   const { projects, mutate } = useProjects();
-  const { isSuperAdmin } = useProfile();
+  const { isSuperAdmin, role } = useProfile();
   const { profiles } = useProfiles(isSuperAdmin);
+  const { team } = useTeamMembers();
+  // Admins and managers pick the salesperson and stager; a designer's new
+  // project is assigned to them by the database.
+  const canAssignPeople = role === "super_admin" || role === "manager";
   const { inventory } = useInventory();
   const { toast } = useToast();
   const router = useRouter();
@@ -47,13 +52,18 @@ export default function ProjectsPage() {
   const [fDeposit, setFDeposit] = useState(0);
   const [fContract, setFContract] = useState(0);
   const [fOwner, setFOwner] = useState("");
-  const [fDesigner, setFDesigner] = useState("");
+  const [fStager, setFStager] = useState("");
+  const [fSales, setFSales] = useState("");
+  const [fDetails, setFDetails] = useState<Record<string, string | number>>({});
 
-  const designers = profiles.filter((u) => u.role === "user");
-  const designerName = (id: string | null) => {
-    const u = id ? profiles.find((x) => x.id === id) : null;
-    return u ? u.full_name || u.email : "";
+  const personName = (id: string | null) => {
+    if (!id) return "";
+    const t = team.find((x) => x.id === id);
+    if (t?.full_name) return t.full_name;
+    const u = profiles.find((x) => x.id === id);
+    return u ? u.full_name || u.email || "" : "";
   };
+  const jobFields = JOB_TYPE_FIELDS[fBU as JobType] || [];
 
   // Install-date range filter. Stored as YYYY-MM-DD so a plain string compare
   // is a correct date compare — no Date objects, no timezone surprises.
@@ -108,24 +118,34 @@ export default function ProjectsPage() {
       setFDeposit(p.deposit);
       setFContract(p.contract_value || 0);
       setFOwner(p.contract_owner_id || "");
-      setFDesigner(p.designer_id || "");
+      setFStager(p.designer_id || "");
+      setFSales(p.salesperson_id || "");
+      setFDetails(p.details || {});
     } else {
       setEditProj(null);
       setFName(""); setFAddr(""); setFBU(""); setFAgent("");
       setFStatus("Scheduled"); setFStart(""); setFEnd("");
       setFNotes(""); setFInvoice(0); setFDeposit(0);
-      setFContract(0); setFOwner(""); setFDesigner("");
+      setFContract(0); setFOwner(""); setFStager(""); setFSales("");
+      setFDetails({});
     }
     setFEndManual(false);
     setModalOpen(true);
+  }
+
+  function handleJobTypeChange(val: string) {
+    setFBU(val);
+    // De-staging only exists for staging jobs.
+    if (!statusesFor(val).includes(fStatus)) setFStatus("Scheduled");
   }
 
   function handleStartChange(val: string) {
     setFStart(val);
     // Always re-derive the end date from the install date so changing the
     // install date (including on an existing project) keeps the 90-day term
-    // correct. Only a hand-typed end date is left alone.
-    if (val && !fEndManual) {
+    // correct. Only a hand-typed end date is left alone. Only staging runs on
+    // a 90-day term.
+    if (val && !fEndManual && fBU === "Staging") {
       // Parse as UTC and do the arithmetic in UTC so DST and local
       // timezone shifts can't move the date by ±1 day.
       const d = new Date(val + "T00:00:00Z");
@@ -136,16 +156,21 @@ export default function ProjectsPage() {
 
   async function handleSave() {
     if (!fName.trim()) { toast("Project name is required", "error"); return; }
-    if (!fBU) { toast("Business unit is required", "error"); return; }
+    if (!fBU) { toast("Job type is required", "error"); return; }
     setSaving(true);
     try {
-      const base = { name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null };
+      // Keep only this job type's answers so switching type doesn't leave
+      // stale fields behind.
+      const details: Record<string, string | number> = {};
+      jobFields.forEach((f) => {
+        const v = fDetails[f.key];
+        if (v !== undefined && v !== "") details[f.key] = v;
+      });
+      const base = { name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, details };
       const p: Project = editProj
         ? { ...editProj, ...base }
-        : { id: generateId(), ...base, rooms: {}, designer_id: null, canSeeFinancials: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
-      // Operational data. Only super admins pick the designer; for a designer
-      // creating a project, the database assigns it to them.
-      await saveProjectInfo(p, isSuperAdmin ? { designerId: fDesigner || null } : undefined);
+        : { id: generateId(), ...base, rooms: {}, designer_id: null, salesperson_id: null, canSeeFinancials: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
+      await saveProjectInfo(p, canAssignPeople ? { stagerId: fStager || null, salespersonId: fSales || null } : undefined);
       // Financials (super admins only here — assigns owner + revenue).
       if (isSuperAdmin) {
         const finPatch = { invoice: fInvoice, deposit: fDeposit, contract_value: fContract, contract_owner_id: fOwner || null };
@@ -213,7 +238,7 @@ export default function ProjectsPage() {
 
       <div className="flex gap-2 flex-wrap mb-3.5">
         <select value={filterBU} onChange={(e) => setFilterBU(e.target.value)} className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card">
-          <option value="">All Business Units</option>
+          <option value="">All Job Types</option>
           {BUSINESS_UNITS.map((b) => <option key={b}>{b}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="py-1.5 px-2.5 border border-border rounded-lg text-sm bg-card">
@@ -264,7 +289,7 @@ export default function ProjectsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Project", "Business Unit", ...(isSuperAdmin ? ["Designer"] : []), "Start", "End", ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
+                {["Project", "Job Type", ...(canAssignPeople ? ["Salesperson", "Stager"] : []), "Start", "End", ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
                   <th key={i} className={`bg-background py-2.5 px-3 font-semibold text-xs uppercase tracking-wider text-muted border-b border-border whitespace-nowrap ${["Invoice", "Profit", "Margin"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
                 ))}
               </tr>
@@ -279,8 +304,11 @@ export default function ProjectsPage() {
                       {p.address && <><br /><span className="text-muted text-xs">{p.address}</span></>}
                     </td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{p.bu}</td>
-                    {isSuperAdmin && (
-                      <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{designerName(p.designer_id) || <span className="text-muted">Unassigned</span>}</td>
+                    {canAssignPeople && (
+                      <>
+                        <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{personName(p.salesperson_id) || <span className="text-muted">—</span>}</td>
+                        <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{personName(p.designer_id) || <span className="text-muted">Unassigned</span>}</td>
+                      </>
                     )}
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.start_date)}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.end_date)}</td>
@@ -322,17 +350,50 @@ export default function ProjectsPage() {
                 <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Project Name *</label><input value={fName} onChange={(e) => setFName(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Property Address</label><input value={fAddr} onChange={(e) => setFAddr(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
-                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Business Unit *</label><select value={fBU} onChange={(e) => setFBU(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Select...</option>{BUSINESS_UNITS.map((b) => <option key={b}>{b}</option>)}</select></div>
-                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Agent Contact</label><input value={fAgent} onChange={(e) => setFAgent(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
-                  {isSuperAdmin && (
-                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Assigned Designer</label><select value={fDesigner} onChange={(e) => setFDesigner(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Unassigned (admins only)</option>{designers.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}</select></div>
-                  )}
-                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Status</label><select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent">{PROJECT_STATUSES.map((s) => <option key={s}>{s}</option>)}</select></div>
+                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Job Type *</label><select value={fBU} onChange={(e) => handleJobTypeChange(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Select...</option>{BUSINESS_UNITS.map((b) => <option key={b}>{b}</option>)}</select></div>
+                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">{fBU === "Staging" || !fBU ? "Agent Contact" : "Client / Contact"}</label><input value={fAgent} onChange={(e) => setFAgent(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
+                  <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Status</label><select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent">{statusesFor(fBU).map((s) => <option key={s}>{s}</option>)}</select></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Start Date</label><input type="date" value={fStart} onChange={(e) => handleStartChange(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">End Date</label><input type="date" value={fEnd} onChange={(e) => { setFEnd(e.target.value); setFEndManual(true); }} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                   <div className="flex flex-col gap-1 col-span-2 max-sm:col-span-1"><label className="text-xs font-semibold text-muted">Notes</label><textarea rows={2} value={fNotes} onChange={(e) => setFNotes(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm resize-y min-h-[50px] focus:outline-none focus:border-accent" /></div>
                 </div>
               </div>
+              {/* People — drives revenue credit and who can see the project */}
+              {canAssignPeople && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">People</h4>
+                  <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Salesperson Responsible</label><select value={fSales} onChange={(e) => setFSales(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Unassigned</option>{team.map((u) => <option key={u.id} value={u.id}>{u.full_name || "Unnamed user"}</option>)}</select></div>
+                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Stager Responsible</label><select value={fStager} onChange={(e) => setFStager(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Unassigned</option>{team.map((u) => <option key={u.id} value={u.id}>{u.full_name || "Unnamed user"}</option>)}</select></div>
+                  </div>
+                  <p className="text-xs text-muted mt-1.5">Can be the same person. Designers see projects where they are either one.</p>
+                </div>
+              )}
+              {/* Job-type-specific fields */}
+              {jobFields.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">{fBU} Details</h4>
+                  <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
+                    {jobFields.map((f) => {
+                      const v = fDetails[f.key] ?? "";
+                      const set = (val: string) => setFDetails((d) => ({ ...d, [f.key]: f.type === "number" && val !== "" ? Number(val) : val }));
+                      const cls = "py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent";
+                      return (
+                        <div key={f.key} className={`flex flex-col gap-1 ${f.type === "textarea" ? "col-span-2 max-sm:col-span-1" : ""}`}>
+                          <label className="text-xs font-semibold text-muted">{f.label}</label>
+                          {f.type === "select" ? (
+                            <select value={String(v)} onChange={(e) => set(e.target.value)} className={cls}><option value="">Select...</option>{f.options!.map((o) => <option key={o}>{o}</option>)}</select>
+                          ) : f.type === "textarea" ? (
+                            <textarea rows={2} value={String(v)} onChange={(e) => set(e.target.value)} className={`${cls} resize-y min-h-[50px]`} />
+                          ) : (
+                            <input type={f.type === "number" ? "number" : "text"} min={f.type === "number" ? 0 : undefined} value={String(v)} onChange={(e) => set(e.target.value)} className={cls} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {/* Revenue & Contract — super admins only */}
               {isSuperAdmin && (
                 <div className="mb-4">

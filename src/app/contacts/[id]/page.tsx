@@ -160,6 +160,8 @@ export default function ContactDetailPage() {
         status: pStatus,
         rooms: {},
         designer_id: null,
+        salesperson_id: null,
+        details: {},
         canSeeFinancials: false,
         invoice: 0,
         deposit: 0,
@@ -661,7 +663,7 @@ export default function ContactDetailPage() {
                 <input value={pAddr} onChange={(e) => setPAddr(e.target.value)} className={inputCls} />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-muted">Business Unit</label>
+                <label className="text-xs font-semibold text-muted">Job Type</label>
                 <select value={pBU} onChange={(e) => setPBU(e.target.value)} className={inputCls}>
                   {BUSINESS_UNITS.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
