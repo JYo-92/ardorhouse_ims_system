@@ -163,6 +163,7 @@ export default function ContactDetailPage() {
         salesperson_id: null,
         details: {},
         canSeeFinancials: false,
+        canSeeContractValue: false,
         invoice: 0,
         deposit: 0,
         contract_value: 0,
@@ -307,7 +308,8 @@ export default function ContactDetailPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <Stat label="Email" value={contact.email || "—"} href={contact.email ? `mailto:${contact.email}` : undefined} />
-          <Stat label="Phone" value={contact.phone || "—"} href={contact.phone ? `tel:${contact.phone}` : undefined} />
+          {/* Plain text, not a tel: link, so it is easy to copy. */}
+          <Stat label="Phone" value={contact.phone || "—"} />
           <div>
             <div className="text-[.68rem] text-muted uppercase tracking-wider">Owner</div>
             <select

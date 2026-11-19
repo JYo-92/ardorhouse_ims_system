@@ -197,7 +197,8 @@ export default function ContactsPage() {
                           {c.first_name} {c.last_name || ""}
                         </td>
                         <td className="py-2.5 px-3 border-b border-border">{c.email || "—"}</td>
-                        <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{c.phone || "—"}</td>
+                        {/* Clicking the phone selects it for copying instead of opening the contact. */}
+                        <td className="py-2.5 px-3 border-b border-border whitespace-nowrap cursor-text select-all" onClick={(e) => e.stopPropagation()}>{c.phone || "—"}</td>
                         <td className="py-2.5 px-3 border-b border-border">{ownerName(c.owner_id)}</td>
                         <td className="py-2.5 px-3 border-b border-border font-semibold">
                           {projectCount.get(c.id) || 0}
@@ -219,7 +220,7 @@ export default function ContactsPage() {
                         {c.first_name} {c.last_name || ""}
                       </div>
                       <div className="text-xs mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                        {c.phone && <span>{c.phone}</span>}
+                        {c.phone && <span className="select-all" onClick={(e) => e.stopPropagation()}>{c.phone}</span>}
                         {c.email && <span className="truncate">{c.email}</span>}
                       </div>
                       <div className="text-xs text-muted mt-1">

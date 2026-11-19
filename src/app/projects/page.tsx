@@ -23,9 +23,10 @@ export default function ProjectsPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // Money columns appear only when the viewer can see at least one project's
-  // financials (super admin = all; user = projects they own).
+  // Money columns appear only for viewers with financials (super admins).
   const showMoney = isSuperAdmin || projects.some((p) => p.canSeeFinancials);
+  // Managers see contract value alone — no invoice, profit or margin.
+  const showContractOnly = !showMoney && projects.some((p) => p.canSeeContractValue);
 
   const activeCount = projects.filter((p) => p.status === "Active").length;
 
@@ -169,7 +170,7 @@ export default function ProjectsPage() {
       const base = { name: fName.trim(), address: fAddr.trim() || null, bu: fBU, agent: fAgent.trim() || null, status: fStatus, start_date: fStart || null, end_date: fEnd || null, notes: fNotes.trim() || null, details };
       const p: Project = editProj
         ? { ...editProj, ...base }
-        : { id: generateId(), ...base, rooms: {}, designer_id: null, salesperson_id: null, canSeeFinancials: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
+        : { id: generateId(), ...base, rooms: {}, designer_id: null, salesperson_id: null, canSeeFinancials: false, canSeeContractValue: false, invoice: 0, deposit: 0, contract_value: 0, contract_owner_id: null, labor: [], misc_lines: [] };
       await saveProjectInfo(p, canAssignPeople ? { stagerId: fStager || null, salespersonId: fSales || null } : undefined);
       // Financials (super admins only here — assigns owner + revenue).
       if (isSuperAdmin) {
@@ -289,8 +290,8 @@ export default function ProjectsPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {["Project", "Job Type", ...(canAssignPeople ? ["Salesperson", "Stager"] : []), "Start", "End", ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
-                  <th key={i} className={`bg-background py-2.5 px-3 font-semibold text-xs uppercase tracking-wider text-muted border-b border-border whitespace-nowrap ${["Invoice", "Profit", "Margin"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
+                {["Project", "Job Type", ...(canAssignPeople ? ["Salesperson", "Stager"] : []), "Start", "End", ...(showContractOnly ? ["Contract Value"] : []), ...(showMoney ? ["Invoice", "Profit", "Margin"] : []), "Status", ""].map((h, i) => (
+                  <th key={i} className={`bg-background py-2.5 px-3 font-semibold text-xs uppercase tracking-wider text-muted border-b border-border whitespace-nowrap ${["Contract Value", "Invoice", "Profit", "Margin"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -312,6 +313,9 @@ export default function ProjectsPage() {
                     )}
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.start_date)}</td>
                     <td className="py-2.5 px-3 border-b border-border whitespace-nowrap">{formatDate(p.end_date)}</td>
+                    {showContractOnly && (
+                      <td className="py-2.5 px-3 border-b border-border text-right whitespace-nowrap">{p.canSeeContractValue ? formatMoney(p.contract_value) : "—"}</td>
+                    )}
                     {showMoney && (() => {
                       const canSee = isSuperAdmin || p.canSeeFinancials;
                       return (
@@ -399,7 +403,6 @@ export default function ProjectsPage() {
                 <div className="mb-4">
                   <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2.5 pb-1 border-b-2 border-accent inline-block">Revenue &amp; Contract</h4>
                   <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
-                    <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Contract Owner</label><select value={fOwner} onChange={(e) => setFOwner(e.target.value)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent"><option value="">Ardor House (unassigned)</option>{profiles.map((u) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}</select></div>
                     <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Total Contract Value ($)</label><input type="number" min={0} step={0.01} value={fContract} onChange={(e) => setFContract(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                     <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Invoice Amount ($)</label><input type="number" min={0} step={0.01} value={fInvoice} onChange={(e) => setFInvoice(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>
                     <div className="flex flex-col gap-1"><label className="text-xs font-semibold text-muted">Deposit Collected ($)</label><input type="number" min={0} step={0.01} value={fDeposit} onChange={(e) => setFDeposit(parseFloat(e.target.value) || 0)} className="py-2 px-2.5 border border-border rounded-lg text-sm focus:outline-none focus:border-accent" /></div>

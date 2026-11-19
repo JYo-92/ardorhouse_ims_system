@@ -63,9 +63,12 @@ export interface Project {
    *  Only used for inventory availability — never listed. */
   hidden?: boolean;
   // --- Financial fields live in project_financials (RLS-protected). They are
-  // populated only when the current user is a super admin or the project's
-  // contract owner; otherwise they are zero/empty and canSeeFinancials=false. ---
+  // populated only for super admins; otherwise they are zero/empty and
+  // canSeeFinancials=false. ---
   canSeeFinancials: boolean;
+  /** Contract value only — super admins and managers. Managers get this
+   *  without canSeeFinancials (no invoice, labor pay or profit). */
+  canSeeContractValue: boolean;
   invoice: number;
   deposit: number;
   contract_value: number;

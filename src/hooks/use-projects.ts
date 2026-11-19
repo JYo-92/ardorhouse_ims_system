@@ -16,12 +16,18 @@ async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Pr
     .order("created_at", { ascending: false });
   if (error) throw error;
 
-  // Financials — RLS only returns rows the user may see (super admin = all,
-  // user = their owned projects). Non-owners get nothing for that project.
+  // Financials — RLS returns rows to super admins only; everyone else gets none.
   const { data: fin, error: finErr } = await supabase
     .from("project_financials")
     .select("*");
   if (finErr) throw finErr;
+
+  // Contract value alone — super admins and managers; empty for everyone else.
+  const { data: cv, error: cvErr } = await supabase.rpc("contract_values");
+  if (cvErr) throw cvErr;
+  const cvMap = new Map<string, number>(
+    ((cv || []) as { project_id: string; contract_value: number | null }[]).map((r) => [r.project_id, Number(r.contract_value) || 0])
+  );
 
   // Furniture out on every open job, including ones this user can't see, so
   // availability stays honest for designers. Item ids and quantities only.
@@ -49,9 +55,10 @@ async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Pr
       salesperson_id: r.salesperson_id ?? null,
       details: r.details || {},
       canSeeFinancials: !!f,
+      canSeeContractValue: cvMap.has(r.id),
       invoice: f ? Number(f.invoice) : 0,
       deposit: f ? Number(f.deposit) : 0,
-      contract_value: f ? Number(f.contract_value) : 0,
+      contract_value: f ? Number(f.contract_value) : cvMap.get(r.id) ?? 0,
       contract_owner_id: f ? f.contract_owner_id : null,
       labor: f?.labor || [],
       misc_lines: f?.misc_lines || [],
@@ -77,6 +84,7 @@ async function fetchProjects(): Promise<{ projects: Project[]; stockProjects: Pr
       details: {},
       hidden: true,
       canSeeFinancials: false,
+      canSeeContractValue: false,
       invoice: 0,
       deposit: 0,
       contract_value: 0,
