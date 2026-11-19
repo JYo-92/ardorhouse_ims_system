@@ -243,7 +243,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Stager Responsible</div><div className="text-sm font-semibold mt-0.5">{personName(project.designer_id)}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Start Date</div><div className="text-sm font-semibold mt-0.5">{formatDate(project.start_date)}</div></div>
         <div><div className="text-[.68rem] text-muted uppercase tracking-wider">End Date</div><div className="text-sm font-semibold mt-0.5">{formatDate(project.end_date)}</div></div>
-        {canSeeMoney && <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Contract Value</div><div className="text-sm font-semibold mt-0.5">{formatMoney(project.contract_value || project.invoice)}</div></div>}
+        {(canSeeMoney || project.canSeeContractValue) && <div><div className="text-[.68rem] text-muted uppercase tracking-wider">Contract Value</div><div className="text-sm font-semibold mt-0.5">{formatMoney(project.contract_value || project.invoice)}</div></div>}
         {jobFields.map((f) => (
           <div key={f.key} className={f.type === "textarea" ? "col-span-3 max-sm:col-span-2" : ""}>
             <div className="text-[.68rem] text-muted uppercase tracking-wider">{f.label}</div>
@@ -405,24 +405,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* P&L Tab */}
       {currentTab === "pnl" && (
         <div className="bg-[#f8f7ff] border border-[#e0dcfc] rounded-lg p-4">
-          {/* Contract — owner & total volume contract value */}
-          <div className="flex justify-between items-center py-1 text-sm">
-            <span>Contract Owner</span>
-            {isSuperAdmin ? (
-              <select
-                value={project.contract_owner_id || ""}
-                onChange={(e) => saveFin({ contract_owner_id: e.target.value || null })}
-                className="py-1 px-2 border border-border rounded text-sm bg-card max-w-[60%]"
-              >
-                <option value="">Ardor House (unassigned)</option>
-                {profiles.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                ))}
-              </select>
-            ) : (
-              <span className="font-semibold">You</span>
-            )}
-          </div>
+          {/* Total volume contract value */}
           <div className="flex justify-between items-center py-1 text-sm">
             <span>Contract Value</span>
             <input
